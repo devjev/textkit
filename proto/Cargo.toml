@@ -1,9 +1,0 @@
-[package]
-name = "proto"
-version = "0.1.0"
-authors = ["Jevgeni Tarasov <jevgeni@hey.com>"]
-edition = "2018"
-
-[dependencies]
-textkit-word = { path = "../textkit-word" }
-structopt = "^0.3"

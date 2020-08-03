@@ -1,3 +1,6 @@
+mod errors;
+
+use crate::errors::TextkitDocxError;
 use regex::Regex;
 use serde::Serialize;
 use std::fs::File;
@@ -11,27 +14,16 @@ static NS_WP_ML: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006
 
 type DocxPayload = ZipArchive<Cursor<Vec<u8>>>;
 
-// TODO fix error flow
+// Crate Internal Functionality
+
 pub(crate) fn unzip_text_file<T: Read + Seek>(
     archive: &mut ZipArchive<T>,
     file_name: &str,
-) -> Result<String, ()> {
-    if let Ok(mut file) = archive.by_name(file_name) {
-        let mut contents = String::new();
-        if let Ok(_) = file.read_to_string(&mut contents) {
-            Ok(contents)
-        } else {
-            Err(())
-        }
-    } else {
-        Err(())
-    }
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub(crate) enum TokenType {
-    Template,
-    Normal,
+) -> Result<String, TextkitDocxError> {
+    let mut file = archive.by_name(file_name)?;
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?;
+    Ok(contents)
 }
 
 #[derive(Debug, Clone)]
@@ -41,15 +33,24 @@ pub(crate) struct Token {
     xml_reader_event: xml::reader::XmlEvent,
 }
 
-// TODO make this pub(crate)
+#[derive(Debug, PartialEq, Clone)]
+pub(crate) enum TokenType {
+    Template,
+    Normal,
+}
+
+/// The indices indicating the first and last tokens around
+/// a template placeholder.
 #[derive(Debug)]
-pub struct TokenContext {
+pub(crate) struct TemplateArea {
     pub context_start_index: Option<usize>,
     pub context_end_index: Option<usize>,
     pub token_index: usize,
 }
 
-pub(crate) fn xml_to_token_vec(xml: &str) -> Vec<Token> {
+/// Reads a string of XML data and converts it into a vector
+/// of Token objects.
+pub(crate) fn xml_to_token_vec(xml: &str) -> Result<Vec<Token>, TextkitDocxError> {
     let mut result: Vec<Token> = Vec::new();
 
     let source_buf = BufReader::new(xml.as_bytes());
@@ -81,11 +82,11 @@ pub(crate) fn xml_to_token_vec(xml: &str) -> Vec<Token> {
                 token_text: None,
                 xml_reader_event: anything_else.clone(),
             }),
-            _ => (), // Ignore errors TODO
+            Err(error) => return Err(error.clone().into()),
         }
     }
 
-    result
+    Ok(result)
 }
 
 pub(crate) fn write_token_vector_to_string_(tokens: &Vec<Token>) -> String {
@@ -119,29 +120,31 @@ pub(crate) fn new_zip_bytes_with_document_xml(
         let options = FileOptions::default()
             .compression_method(zip::CompressionMethod::Deflated)
             .unix_permissions(0o755);
-    
+
         // We don't copy word/document.xml over.
         let excluded_path = Path::new("word/document.xml");
-    
+
         // Copy over everything except for word/document.xml
         for i in 0..zip_payload.len() {
             // Extract the current file
             let mut file = zip_payload.by_index(i).unwrap();
-    
+
             // Write it to the new zip file
             if let Some(full_file_name) = file.sanitized_name().to_str() {
                 let target_path = Path::new(full_file_name);
-    
+
                 if target_path != excluded_path {
                     let mut file_buf: Vec<u8> = Vec::new();
                     file.read_to_end(&mut file_buf).unwrap();
-                    zip.start_file_from_path(&target_path, options.clone()).unwrap();
+                    zip.start_file_from_path(&target_path, options.clone())
+                        .unwrap();
                     zip.write_all(&file_buf).unwrap();
                 }
             }
         }
-    
-        zip.start_file_from_path(&excluded_path, options.clone()).unwrap();
+
+        zip.start_file_from_path(&excluded_path, options.clone())
+            .unwrap();
         zip.write_all(document_xml.as_bytes()).unwrap();
         zip.finish().unwrap();
     }
@@ -149,11 +152,11 @@ pub(crate) fn new_zip_bytes_with_document_xml(
     buf
 }
 
-pub(crate) fn find_template_token_context(
+pub(crate) fn find_template_areas(
     token_vec: &Vec<Token>,
     wrapping_element_name: &str,
-) -> Vec<TokenContext> {
-    let mut result: Vec<TokenContext> = Vec::new();
+) -> Vec<TemplateArea> {
+    let mut result: Vec<TemplateArea> = Vec::new();
     let ns = Some(String::from(NS_WP_ML));
 
     let token_indices = token_vec.iter().enumerate().filter_map(|(i, token)| {
@@ -210,7 +213,7 @@ pub(crate) fn find_template_token_context(
             }
         } // find end_index
 
-        result.push(TokenContext {
+        result.push(TemplateArea {
             token_index,
             context_start_index: start_index,
             context_end_index: end_index,
@@ -220,47 +223,41 @@ pub(crate) fn find_template_token_context(
     result
 }
 
+/// A .docx template supporting Handlebars syntax.
 #[derive(Debug)]
 pub struct DocxTemplate {
     pub source_payload: DocxPayload,
     document_xml: String,
 }
 
-// TODO fix error flow.
 impl DocxTemplate {
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, ()> {
+    /// Create DocxTemplate from memory.
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, TextkitDocxError> {
         let buf = Vec::from(bytes);
         let cursor = Cursor::new(buf);
-
-        if let Ok(mut source_payload) = ZipArchive::new(cursor) {
-            let document_xml = unzip_text_file(&mut source_payload, "word/document.xml")?;
-            Ok(Self {
-                source_payload,
-                document_xml,
-            })
-        } else {
-            Err(())
-        }
+        let mut source_payload = ZipArchive::new(cursor)?;
+        let document_xml = unzip_text_file(&mut source_payload, "word/document.xml")?;
+        Ok(Self {
+            source_payload,
+            document_xml,
+        })
     }
 
-    pub fn from_file(file_name: &PathBuf) -> Result<Self, ()> {
-        if let Ok(mut fh) = File::open(file_name) {
-            let mut buf: Vec<u8> = Vec::new();
-            if let Ok(_) = fh.read_to_end(&mut buf) {
-                DocxTemplate::from_bytes(&mut buf)
-            } else {
-                Err(())
-            }
-        } else {
-            Err(())
-        }
+    /// Create a DocxTemplate from a .docx file on disk.
+    pub fn from_file(file_name: &PathBuf) -> Result<Self, TextkitDocxError> {
+        let mut fh = File::open(file_name)?;
+        let mut buf: Vec<u8> = Vec::new();
+        fh.read_to_end(&mut buf)?;
+        DocxTemplate::from_bytes(&buf)
     }
 
-    pub fn render<T: Serialize>(&self, data: &T) -> Vec<u8> {
+    /// Render the template given some data context into a new .docx file (returned)
+    /// as a vector of bytes.
+    pub fn render<T: Serialize>(&self, data: &T) -> Result<Vec<u8>, TextkitDocxError> {
         let mut result: Vec<Token> = Vec::new();
 
-        let tokens = xml_to_token_vec(&self.document_xml);
-        let contexts = find_template_token_context(&tokens, "p");
+        let tokens = xml_to_token_vec(&self.document_xml)?;
+        let contexts = find_template_areas(&tokens, "p");
         let hb = handlebars::Handlebars::new();
 
         // This index tracks the position in the `tokens` vector of the last
@@ -268,14 +265,14 @@ impl DocxTemplate {
         let mut bookmark_index: usize = 0;
 
         for context in contexts.iter() {
-            if let TokenContext {
+            if let TemplateArea {
                 context_start_index: Some(start),
                 context_end_index: Some(end),
                 token_index: index,
             } = context
             {
                 // The template area (expressed as a vector of tokens) identified
-                // by the running TokenContext.
+                // by the running TemplateArea.
                 let subvector_index = index - start;
                 let template_tokens = tokens[*start..=*end].to_vec();
 
@@ -324,8 +321,11 @@ impl DocxTemplate {
         // New document.xml contents
         let document_xml_contents = write_token_vector_to_string_(&result);
 
+        // NOTE Not sure if cloning here is really necessary.
         let mut payload = self.source_payload.clone();
 
-        new_zip_bytes_with_document_xml(&mut payload, &document_xml_contents)
+        let result = new_zip_bytes_with_document_xml(&mut payload, &document_xml_contents);
+
+        Ok(result)
     }
 }
