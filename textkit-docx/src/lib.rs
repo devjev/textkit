@@ -101,7 +101,7 @@ impl DocxTemplate {
         let mut result: Vec<Token> = Vec::new();
         let hb = handlebars::Handlebars::new();
 
-        // This index tracks the position in the `tokens` vector of the last
+        // This index tracks the position in the `self.tokens` vector of the last
         // non-template token that was processed.
         let mut bookmark_index: usize = 0;
 

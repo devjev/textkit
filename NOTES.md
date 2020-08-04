@@ -4,6 +4,10 @@
 Rust libraries for DOCX manipulation (both poiscript and bokuweb) - instead do
 non-destructive XML manipulation based on a few ground rules.
 
+_N.B!_ A very good (and relatively short)
+[introduction](https://www.toptal.com/xml/an-informal-introduction-to-docx) to
+the DOCX format by Stepan Yakovenko.
+
 ## Complex Templates
 
 **Goal**: Be able to render complex data (like tables) into Word files using
