@@ -1,3 +1,10 @@
 {
-  "test": "Lorem ipsum dolor sit amet"
+  "test": "Lorem ipsum dolor sit amet",
+  "complex_data": {
+    "one": 1234,
+    "two": 7890,
+    "three": {
+      "some_array": ["a", "b", "c", "d"]
+    }
+  }
 }
