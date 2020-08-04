@@ -1,7 +1,5 @@
 [workspace]
 members = [
-    "textkit-word",
-    "textkit-word-wasm-test",
+    "textkit",
     "textkit-docx",
-    "proto"
 ]

@@ -10,11 +10,10 @@ use xml::reader::EventReader;
 use xml::writer::EmitterConfig;
 use zip::{write::FileOptions, ZipArchive, ZipWriter};
 
+/// Namespace string used in DOCX XML data to denote word processing elements (like paragraphs).
 static NS_WP_ML: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 
 type DocxPayload = ZipArchive<Cursor<Vec<u8>>>;
-
-// Crate Internal Functionality
 
 pub(crate) fn unzip_text_file<T: Read + Seek>(
     archive: &mut ZipArchive<T>,
@@ -26,6 +25,8 @@ pub(crate) fn unzip_text_file<T: Read + Seek>(
     Ok(contents)
 }
 
+/// `textkit-docx` treats XML data as a vector of tokens, which can
+/// represent a opening tag, a closing tag, CDATA, character data, etc.
 #[derive(Debug, Clone)]
 pub(crate) struct Token {
     token_type: TokenType,
@@ -33,6 +34,8 @@ pub(crate) struct Token {
     xml_reader_event: xml::reader::XmlEvent,
 }
 
+/// Differentiates between tokens that contain character data with
+/// Handlebars templating syntax and everything else.
 #[derive(Debug, PartialEq, Clone)]
 pub(crate) enum TokenType {
     Template,
@@ -89,7 +92,9 @@ pub(crate) fn xml_to_token_vec(xml: &str) -> Result<Vec<Token>, TextkitDocxError
     Ok(result)
 }
 
-pub(crate) fn write_token_vector_to_string_(tokens: &Vec<Token>) -> String {
+pub(crate) fn write_token_vector_to_string_(
+    tokens: &Vec<Token>,
+) -> Result<String, TextkitDocxError> {
     let mut buf: Vec<u8> = Vec::new();
     let cursor = Cursor::new(&mut buf);
     let mut writer = EmitterConfig::new()
@@ -98,18 +103,24 @@ pub(crate) fn write_token_vector_to_string_(tokens: &Vec<Token>) -> String {
 
     for item in tokens.iter() {
         if let Some(writer_event) = item.xml_reader_event.as_writer_event() {
-            writer.write(writer_event).unwrap();
+            // the .write method returns a result, the error value of which is
+            // of type xml::writer::emitter::EmitterError, which is private...
+            // So here we are just passing along a token TextkitDocxError
+            // instead.
+            if let Err(_) = writer.write(writer_event) {
+                return Err(TextkitDocxError::FailedWriteXml);
+            }
         }
     }
 
     let result = String::from(std::str::from_utf8(&buf).unwrap());
-    result
+    Ok(result)
 }
 
 pub(crate) fn new_zip_bytes_with_document_xml(
     zip_payload: &mut ZipArchive<Cursor<Vec<u8>>>,
     document_xml: &str,
-) -> Vec<u8> {
+) -> Result<Vec<u8>, TextkitDocxError> {
     // Prepare everything necessary to create a new zip payload
     // in memory.
     let mut buf: Vec<u8> = Vec::new();
@@ -127,7 +138,7 @@ pub(crate) fn new_zip_bytes_with_document_xml(
         // Copy over everything except for word/document.xml
         for i in 0..zip_payload.len() {
             // Extract the current file
-            let mut file = zip_payload.by_index(i).unwrap();
+            let mut file = zip_payload.by_index(i)?;
 
             // Write it to the new zip file
             if let Some(full_file_name) = file.sanitized_name().to_str() {
@@ -135,21 +146,19 @@ pub(crate) fn new_zip_bytes_with_document_xml(
 
                 if target_path != excluded_path {
                     let mut file_buf: Vec<u8> = Vec::new();
-                    file.read_to_end(&mut file_buf).unwrap();
-                    zip.start_file_from_path(&target_path, options.clone())
-                        .unwrap();
-                    zip.write_all(&file_buf).unwrap();
+                    file.read_to_end(&mut file_buf)?;
+                    zip.start_file_from_path(&target_path, options.clone())?;
+                    zip.write_all(&file_buf)?;
                 }
             }
         }
 
-        zip.start_file_from_path(&excluded_path, options.clone())
-            .unwrap();
-        zip.write_all(document_xml.as_bytes()).unwrap();
-        zip.finish().unwrap();
+        zip.start_file_from_path(&excluded_path, options.clone())?;
+        zip.write_all(document_xml.as_bytes())?;
+        zip.finish()?;
     }
 
-    buf
+    Ok(buf)
 }
 
 pub(crate) fn find_template_areas(
@@ -319,13 +328,11 @@ impl DocxTemplate {
         result.extend(sequel);
 
         // New document.xml contents
-        let document_xml_contents = write_token_vector_to_string_(&result);
+        let document_xml_contents = write_token_vector_to_string_(&result)?;
 
         // NOTE Not sure if cloning here is really necessary.
         let mut payload = self.source_payload.clone();
 
-        let result = new_zip_bytes_with_document_xml(&mut payload, &document_xml_contents);
-
-        Ok(result)
+        new_zip_bytes_with_document_xml(&mut payload, &document_xml_contents)
     }
 }

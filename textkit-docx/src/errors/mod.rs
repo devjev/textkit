@@ -2,6 +2,9 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum TextkitDocxError {
+    #[error("Failed to write XML data")]
+    FailedWriteXml,
+
     #[error("Docx file is malformed.")]
     Malformed {
         #[from]
