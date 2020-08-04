@@ -13,3 +13,4 @@ regex = "^1"
 handlebars = "^3"
 serde = "^1"
 thiserror = "^1"
+datakit = { git = "https://github.com/devjev/datakit.git" }
