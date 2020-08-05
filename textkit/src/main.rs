@@ -25,23 +25,28 @@ fn docx_template_apply(opts: DocxTemplateOptions) -> std::io::Result<()> {
         );
         Err(error)
     } else {
-        if let Ok(template) = DocxTemplate::from_file(&opts.template) {
-            let data_fh = File::open(&opts.json)?;
-            let mut output_fh = File::create(&opts.output)?;
-
-            let data: serde_json::Value = serde_json::from_reader(data_fh)?;
-
-            if let Ok(mut new_docx_data) = template.render(&data) {
-                output_fh.write_all(&mut new_docx_data)?;
-            } else {
-                let error = Error::new(ErrorKind::Other, "Could not render the docx template!");
-                return Err(error);
+        match DocxTemplate::from_file(&opts.template) {
+            Ok(template) => {
+                let data_fh = File::open(&opts.json)?;
+                let mut output_fh = File::create(&opts.output)?;
+                let data: serde_json::Value = serde_json::from_reader(data_fh)?;
+                match template.render(&data) {
+                    Ok(mut new_docx_data) => {
+                        output_fh.write_all(&mut new_docx_data)?;
+                    }
+                    Err(error) => {
+                        let message = format!("Could not render the DOCX template: {:?}", error);
+                        let new_error = Error::new(ErrorKind::Other, message);
+                        return Err(new_error);
+                    }
+                }
+                Ok(())
             }
-
-            Ok(())
-        } else {
-            let error = Error::new(ErrorKind::InvalidData, "Could not read the DOCX template.");
-            Err(error)
+            Err(error) => {
+                let message = format!("Could not read the DOCX template: {:?}", error);
+                let new_error = Error::new(ErrorKind::InvalidData, message);
+                Err(new_error)
+            }
         }
     }
 }
