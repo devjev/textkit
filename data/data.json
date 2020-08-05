@@ -6,5 +6,64 @@
     "three": {
       "some_array": ["a", "b", "c", "d"]
     }
+  },
+  "table_data": {
+    "columns": [
+      [
+        {
+          "text": "First value"
+        },
+        {
+          "text": "First value, second row"
+        }
+      ],
+      [
+        {
+          "text": "Second value"
+        },
+        {
+          "text": "Second value, second row"
+        }
+      ],
+      [
+        {
+          "text": "Third value"
+        },
+        {
+          "text": "Third value, second row"
+        }
+      ]
+    ],
+    "columnContracts": [
+      {
+        "name": "First Column",
+        "valueContract": {
+          "expectedType": {
+            "isType": "text"
+          },
+          "valueConstraints": []
+        }
+      },
+      {
+        "name": "Second Column",
+        "valueContract": {
+          "expectedType": {
+            "isType": "text"
+          },
+          "valueConstraints": []
+        }
+      },
+      {
+        "name": "Third Column",
+        "valueContract": {
+          "expectedType": {
+            "isType": "text"
+          },
+          "valueConstraints": []
+        }
+      }
+    ],
+    "colLength": 3,
+    "rowLength": 2
   }
 }
