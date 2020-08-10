@@ -1,4 +1,4 @@
-mod errors;
+pub mod errors;
 
 use crate::errors::TextkitDocxError;
 use datakit::table::Table;
