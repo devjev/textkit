@@ -2,11 +2,20 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum TextkitDocxError {
+    #[error("Unable to parse input data for template")]
+    BadInputData {
+        #[from]
+        source: serde_json::error::Error,
+    },
+
+    #[error("Malformed document")]
+    Malformed(String),
+
     #[error("Failed to write XML data")]
     FailedWriteXml,
 
     #[error("Docx file is malformed.")]
-    Malformed {
+    FailedReadXml {
         #[from]
         source: xml::reader::Error,
     },
