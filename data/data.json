@@ -65,5 +65,9 @@
     ],
     "colLength": 3,
     "rowLength": 2
-  }
+  },
+  "myPlaceholder": "Hello",
+  "yourPlaceholder": "world",
+  "thisIsTrue": true,
+  "thisIsFalse": false
 }

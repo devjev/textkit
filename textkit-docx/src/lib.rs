@@ -18,9 +18,11 @@ use zip::{write::FileOptions, ZipArchive, ZipWriter};
 static NS_WP_ML: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 
 // Regex patterns used to match Handlebars placeholders
-static PAT_HB_ALL: &str = "\\{\\{(\\S+)\\s*([^\\{\\}]+)?\\}\\}"; // All placeholders
-static PAT_HB_SMP: &str = "\\{\\{\\S+\\}\\}"; // Only simple placeholders
-static PAT_HB_CPX: &str = "\\{\\{(\\S+)\\s+([^\\{\\}]+)?\\}\\}"; // Only placeholders with helpers
+static PAT_HB_ALL: &str = r"\{\{(\S+)\s*([^\{\}]+)?\}\}"; // All placeholders
+static PAT_HB_SMP: &str = r"\{\{\S+\}\}"; // Only simple placeholders
+static PAT_HB_CPX: &str = r"\{\{(\S+)\s+([^\{\}]+)?\}\}"; // Only placeholders with helpers
+static PAT_HB_STR: &str = r"\{\{"; // Start of the placeholder
+static PAT_HB_END: &str = r"\}\}"; // End of the placeholder
 
 type DocxPayload = ZipArchive<Cursor<Vec<u8>>>;
 
@@ -70,6 +72,35 @@ pub struct PageDimensions {
     pub header: i32,
     pub footer: i32,
     pub gutter: i32,
+}
+
+pub(crate) enum StringAccumulator {
+    Waiting,
+    Accumulating(String),
+}
+
+impl StringAccumulator {
+    pub fn accumulate(&mut self, text: &str) {
+        *self = match self {
+            Self::Waiting => Self::Accumulating(String::from(text)),
+            Self::Accumulating(acc) => {
+                let mut new_string = acc.clone();
+                new_string.push_str(text);
+                Self::Accumulating(new_string)
+            }
+        }
+    }
+
+    pub fn stop_accumulating(&mut self) -> Option<String> {
+        match self {
+            Self::Waiting => None,
+            Self::Accumulating(acc) => {
+                let result = acc.clone();
+                *self = Self::Waiting;
+                Some(result)
+            }
+        }
+    }
 }
 
 /// A .docx template supporting Handlebars syntax.
@@ -285,10 +316,14 @@ pub(crate) fn xml_to_token_vec(xml: &str) -> Result<Vec<Token>, TextkitDocxError
 
     let simple_template_pattern = Regex::new(PAT_HB_SMP).unwrap();
     let complex_template_pattern = Regex::new(PAT_HB_CPX).unwrap();
+    let start_pattern = Regex::new(PAT_HB_STR).unwrap();
+    let end_pattern = Regex::new(PAT_HB_END).unwrap();
+
+    let mut accumulator = StringAccumulator::Waiting;
 
     for event in source_parser {
-        match &event {
-            Ok(e @ xml::reader::XmlEvent::Characters(_)) => {
+        match (&event, &accumulator) {
+            (Ok(e @ xml::reader::XmlEvent::Characters(_)), StringAccumulator::Waiting) => {
                 if let xml::reader::XmlEvent::Characters(contents) = e {
                     if simple_template_pattern.is_match(contents) {
                         result.push(Token {
@@ -302,6 +337,9 @@ pub(crate) fn xml_to_token_vec(xml: &str) -> Result<Vec<Token>, TextkitDocxError
                             token_text: Some(contents.clone()),
                             xml_reader_event: e.clone(),
                         })
+                    } else if start_pattern.is_match(contents) {
+                        // no full pattern match, but there's a beginning
+                        accumulator.accumulate(contents);
                     } else {
                         result.push(Token {
                             token_type: TokenType::Normal,
@@ -311,12 +349,38 @@ pub(crate) fn xml_to_token_vec(xml: &str) -> Result<Vec<Token>, TextkitDocxError
                     }
                 }
             }
-            Ok(anything_else) => result.push(Token {
+            (Ok(e @ xml::reader::XmlEvent::Characters(_)), StringAccumulator::Accumulating(_)) => {
+                if let xml::reader::XmlEvent::Characters(contents) = e {
+                    if end_pattern.is_match(contents) {
+                        accumulator.accumulate(contents);
+                        if let Some(acc_result) = accumulator.stop_accumulating() {
+                            if simple_template_pattern.is_match(&acc_result) {
+                                result.push(Token {
+                                    token_type: TokenType::Template,
+                                    token_text: Some(acc_result.clone()),
+                                    xml_reader_event: e.clone(),
+                                })
+                            } else if complex_template_pattern.is_match(&acc_result) {
+                                result.push(Token {
+                                    token_type: TokenType::ComplexTemplate,
+                                    token_text: Some(acc_result.clone()),
+                                    xml_reader_event: e.clone(),
+                                })
+                            } else {
+                                // TODO issue an error here
+                            }
+                        }
+                    } else {
+                        accumulator.accumulate(contents);
+                    }
+                }
+            }
+            (Ok(anything_else), _) => result.push(Token {
                 token_type: TokenType::Normal,
                 token_text: None,
                 xml_reader_event: anything_else.clone(),
             }),
-            Err(error) => return Err(error.clone().into()),
+            (Err(error), _) => return Err(error.clone().into()),
         }
     }
 

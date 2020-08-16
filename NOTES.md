@@ -125,3 +125,23 @@ data as a table, the output should be.
 </w:tbl>
 ``
 ```
+
+## Bugs With Broken Up Text Runs
+
+```
+<w:p w14:paraId="0EF41D1A" w14:textId="4124C809" w:rsidR="00A56FB5" w:rsidRDefault="00A56FB5">
+    <w:r>
+        <w:t>{{</w:t>
+    </w:r>
+    <w:proofErr w:type="spellStart"/>
+    <w:r>
+        <w:t>myPlaceholder</w:t>
+    </w:r>
+    <w:proofErr w:type="spellEnd"/>
+    <w:r>
+        <w:t>}}</w:t>
+    </w:r>
+</w:p>
+```
+
+Fixed in v0.1.3.
