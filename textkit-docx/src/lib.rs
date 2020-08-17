@@ -20,9 +20,7 @@ static NS_WP_ML: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006
 // Regex patterns used to match Handlebars placeholders
 static PAT_HB_ALL: &str = r"\{\{(\S+)\s*([^\{\}]+)?\}\}"; // All placeholders
 static PAT_HB_SMP: &str = r"\{\{\S+\}\}"; // Only simple placeholders
-static PAT_HB_CPX: &str = r"\{\{(\S+)\s+([^\{\}]+)?\}\}"; // Only placeholders with helpers
-static PAT_HB_STR: &str = r"\{\{"; // Start of the placeholder
-static PAT_HB_END: &str = r"\}\}"; // End of the placeholder
+static PAT_HB_CPX: &str = r"\{\{[^#/](\S+)\s+([^\{\}]+)?\}\}"; // Only placeholders with helpers
 
 type DocxPayload = ZipArchive<Cursor<Vec<u8>>>;
 
@@ -74,32 +72,108 @@ pub struct PageDimensions {
     pub gutter: i32,
 }
 
-pub(crate) enum StringAccumulator {
-    Waiting,
-    Accumulating(String),
+#[derive(Debug)]
+pub(crate) enum TemplateParserFsmAccState {
+    Uncertain,
+    Simple,
+    Multiline { depth: usize },
 }
 
-impl StringAccumulator {
+#[derive(Debug)]
+pub(crate) enum TemplateParserFsm {
+    Idle,
+    Accumulating {
+        acc: String,
+        acc_state: TemplateParserFsmAccState,
+    },
+    Done(String),
+}
+
+impl TemplateParserFsm {
     pub fn accumulate(&mut self, text: &str) {
-        *self = match self {
-            Self::Waiting => Self::Accumulating(String::from(text)),
-            Self::Accumulating(acc) => {
-                let mut new_string = acc.clone();
-                new_string.push_str(text);
-                Self::Accumulating(new_string)
+        let start_uncertain = Regex::new(r"\{").unwrap();
+        let start_simple = Regex::new(r"\{\{").unwrap();
+        let start_multi = Regex::new(r"\{\{#").unwrap();
+        let terminating_pattern_multi = Regex::new(r"\{\{/").unwrap();
+        let terminating_pattern_simple = Regex::new(r"\}\}").unwrap();
+
+        let match_start = |s: &str| {
+            if start_multi.is_match(s) {
+                Self::Accumulating {
+                    acc: String::from(s),
+                    acc_state: TemplateParserFsmAccState::Multiline { depth: 0 },
+                }
+            } else if start_simple.is_match(s) {
+                Self::Accumulating {
+                    acc: String::from(s),
+                    acc_state: TemplateParserFsmAccState::Simple,
+                }
+            } else if start_uncertain.is_match(s) {
+                Self::Accumulating {
+                    acc: String::from(s),
+                    acc_state: TemplateParserFsmAccState::Uncertain,
+                }
+            } else {
+                Self::Done(String::from(s))
             }
+        };
+
+        *self = match self {
+            Self::Idle => match_start(text),
+            Self::Accumulating {
+                acc,
+                acc_state: TemplateParserFsmAccState::Multiline { .. },
+            } => {
+                let mut new_str = acc.clone();
+                new_str.push_str(text);
+                let opening_brackets = start_multi.find_iter(&new_str).count();
+                let closing_brackets = terminating_pattern_multi.find_iter(&new_str).count();
+                let still_open = opening_brackets - closing_brackets;
+
+                if still_open > 0 {
+                    Self::Accumulating {
+                        acc: new_str,
+                        acc_state: TemplateParserFsmAccState::Multiline { depth: still_open },
+                    }
+                } else if still_open == 0 {
+                    Self::Done(new_str)
+                } else {
+                    // TODO error here?
+                    Self::Accumulating {
+                        acc: new_str,
+                        acc_state: TemplateParserFsmAccState::Multiline { depth: still_open },
+                    }
+                }
+            }
+            Self::Accumulating {
+                acc,
+                acc_state: TemplateParserFsmAccState::Simple,
+            } => {
+                let mut new_str = acc.clone();
+                new_str.push_str(text);
+                if terminating_pattern_simple.is_match(&new_str) {
+                    Self::Done(new_str)
+                } else {
+                    Self::Accumulating {
+                        acc: new_str,
+                        acc_state: TemplateParserFsmAccState::Simple,
+                    }
+                }
+            }
+            Self::Accumulating {
+                acc,
+                acc_state: TemplateParserFsmAccState::Uncertain,
+            } => {
+                let mut new_str = acc.clone();
+                new_str.push_str(text);
+                match_start(&new_str)
+            }
+            Self::Done(x) => Self::Done(x.clone()),
         }
     }
 
-    pub fn stop_accumulating(&mut self) -> Option<String> {
-        match self {
-            Self::Waiting => None,
-            Self::Accumulating(acc) => {
-                let result = acc.clone();
-                *self = Self::Waiting;
-                Some(result)
-            }
-        }
+    pub fn reset(&mut self) {
+        *self = Self::Idle;
     }
 }
 
@@ -316,71 +390,42 @@ pub(crate) fn xml_to_token_vec(xml: &str) -> Result<Vec<Token>, TextkitDocxError
 
     let simple_template_pattern = Regex::new(PAT_HB_SMP).unwrap();
     let complex_template_pattern = Regex::new(PAT_HB_CPX).unwrap();
-    let start_pattern = Regex::new(PAT_HB_STR).unwrap();
-    let end_pattern = Regex::new(PAT_HB_END).unwrap();
-
-    let mut accumulator = StringAccumulator::Waiting;
+    let mut accumulator = TemplateParserFsm::Idle;
 
     for event in source_parser {
         match (&event, &accumulator) {
-            (Ok(e @ xml::reader::XmlEvent::Characters(_)), StringAccumulator::Waiting) => {
+            (Ok(e @ xml::reader::XmlEvent::Characters(_)), _) => {
                 if let xml::reader::XmlEvent::Characters(contents) = e {
-                    if simple_template_pattern.is_match(contents) {
+                    accumulator.accumulate(contents);
+
+                    if let TemplateParserFsm::Done(s) = &accumulator {
+                        let token_type = if simple_template_pattern.is_match(&s) {
+                            TokenType::Template
+                        } else if complex_template_pattern.is_match(&s) {
+                            TokenType::ComplexTemplate
+                        } else {
+                            TokenType::Normal
+                        };
+
+                        let new_event = xml::reader::XmlEvent::Characters(s.clone());
+
                         result.push(Token {
-                            token_type: TokenType::Template,
-                            token_text: Some(contents.clone()),
-                            xml_reader_event: e.clone(),
+                            token_type: token_type,
+                            token_text: Some(s.clone()),
+                            xml_reader_event: new_event,
                         });
-                    } else if complex_template_pattern.is_match(contents) {
-                        result.push(Token {
-                            token_type: TokenType::ComplexTemplate,
-                            token_text: Some(contents.clone()),
-                            xml_reader_event: e.clone(),
-                        })
-                    } else if start_pattern.is_match(contents) {
-                        // no full pattern match, but there's a beginning
-                        accumulator.accumulate(contents);
-                    } else {
-                        result.push(Token {
-                            token_type: TokenType::Normal,
-                            token_text: Some(contents.clone()),
-                            xml_reader_event: e.clone(),
-                        })
+
+                        accumulator.reset();
                     }
                 }
             }
-            (Ok(e @ xml::reader::XmlEvent::Characters(_)), StringAccumulator::Accumulating(_)) => {
-                if let xml::reader::XmlEvent::Characters(contents) = e {
-                    if end_pattern.is_match(contents) {
-                        accumulator.accumulate(contents);
-                        if let Some(acc_result) = accumulator.stop_accumulating() {
-                            if simple_template_pattern.is_match(&acc_result) {
-                                result.push(Token {
-                                    token_type: TokenType::Template,
-                                    token_text: Some(acc_result.clone()),
-                                    xml_reader_event: e.clone(),
-                                })
-                            } else if complex_template_pattern.is_match(&acc_result) {
-                                result.push(Token {
-                                    token_type: TokenType::ComplexTemplate,
-                                    token_text: Some(acc_result.clone()),
-                                    xml_reader_event: e.clone(),
-                                })
-                            } else {
-                                // TODO issue an error here
-                            }
-                        }
-                    } else {
-                        accumulator.accumulate(contents);
-                    }
-                }
-            }
-            (Ok(anything_else), _) => result.push(Token {
+            (Ok(anything_else), TemplateParserFsm::Idle) => result.push(Token {
                 token_type: TokenType::Normal,
                 token_text: None,
                 xml_reader_event: anything_else.clone(),
             }),
             (Err(error), _) => return Err(error.clone().into()),
+            _ => {}
         }
     }
 
@@ -578,8 +623,7 @@ pub(crate) fn write_token_vector_to_string(
             // of type xml::writer::emitter::EmitterError, which is private...
             // So here we are just passing along a token TextkitDocxError
             // instead.
-            if let Err(error) = writer.write(writer_event) {
-                println!("{:?}", error);
+            if let Err(_) = writer.write(writer_event) {
                 return Err(TextkitDocxError::FailedWriteXml);
             }
         }
@@ -766,29 +810,32 @@ pub(crate) fn render_and_paste_tokens<T: Serialize>(
     let hb = handlebars::Handlebars::new();
 
     match hb.render_template(template_text, data) {
-        Ok(rendered_text) if !rendered_text.is_empty() => {
-            // Here for each paragraph in the rendered text, we take the
-            // paragraph formating (and other attributes coming with it)
-            // of where the placeholder was located and use it to produce
-            // DOCX paragraphs in the template. Note, that this is different
-            // to the XML code produced by `make_paragraph_tokens(contents: &str)`,
-            // since that function does not retain any formatting and just
-            // produces "naked" paragraphs.
-            let rendered_chunks = split_string_by_empty_line(&rendered_text);
-            for chunk in rendered_chunks {
-                let chunk_text = String::from(chunk);
+        //Ok(rendered_text) if !rendered_text.is_empty() => {
+        Ok(rendered_text) => {
+            if !rendered_text.is_empty() {
+                // Here for each paragraph in the rendered text, we take the
+                // paragraph formating (and other attributes coming with it)
+                // of where the placeholder was located and use it to produce
+                // DOCX paragraphs in the template. Note, that this is different
+                // to the XML code produced by `make_paragraph_tokens(contents: &str)`,
+                // since that function does not retain any formatting and just
+                // produces "naked" paragraphs.
+                let rendered_chunks = split_string_by_empty_line(&rendered_text);
+                for chunk in rendered_chunks {
+                    let chunk_text = String::from(chunk);
 
-                // Copy the template tokens
-                let mut chunk_tokens: Vec<Token> = template_tokens.clone().into();
+                    // Copy the template tokens
+                    let mut chunk_tokens: Vec<Token> = template_tokens.clone().into();
 
-                // ... and replace the part containing the placeholder
-                // with our rendered content.
-                chunk_tokens[token_index_to_replace] = Token {
-                    token_type: TokenType::Normal,
-                    token_text: Some(chunk_text.clone()),
-                    xml_reader_event: xml::reader::XmlEvent::Characters(chunk_text.clone()),
-                };
-                result.extend(chunk_tokens);
+                    // ... and replace the part containing the placeholder
+                    // with our rendered content.
+                    chunk_tokens[token_index_to_replace] = Token {
+                        token_type: TokenType::Normal,
+                        token_text: Some(chunk_text.clone()),
+                        xml_reader_event: xml::reader::XmlEvent::Characters(chunk_text.clone()),
+                    };
+                    result.extend(chunk_tokens);
+                }
             }
         }
         _ => {
