@@ -2,7 +2,7 @@ mod accumulator;
 
 use crate::errors::TextkitDocxError;
 use crate::{PageDimensions, TemplateArea, Token, TokenType, NS_WP_ML, PAT_HB_CPX, PAT_HB_SMP};
-use accumulator::TemplateParserFsm;
+use accumulator::TemplateAccumulator;
 use regex::Regex;
 use std::io::BufReader;
 use std::io::{Read, Seek};
@@ -19,7 +19,7 @@ pub(crate) fn xml_to_token_vec(xml: &str) -> Result<Vec<Token>, TextkitDocxError
 
     let simple_template_pattern = Regex::new(PAT_HB_SMP).unwrap();
     let complex_template_pattern = Regex::new(PAT_HB_CPX).unwrap();
-    let mut accumulator = TemplateParserFsm::Idle;
+    let mut accumulator = TemplateAccumulator::Idle;
 
     for event in source_parser {
         match (&event, &accumulator) {
@@ -27,7 +27,7 @@ pub(crate) fn xml_to_token_vec(xml: &str) -> Result<Vec<Token>, TextkitDocxError
                 if let xml::reader::XmlEvent::Characters(contents) = e {
                     accumulator.accumulate(contents);
 
-                    if let TemplateParserFsm::Done(s) = &accumulator {
+                    if let TemplateAccumulator::Done(s) = &accumulator {
                         let token_type = if simple_template_pattern.is_match(&s) {
                             TokenType::Template
                         } else if complex_template_pattern.is_match(&s) {
@@ -48,7 +48,7 @@ pub(crate) fn xml_to_token_vec(xml: &str) -> Result<Vec<Token>, TextkitDocxError
                     }
                 }
             }
-            (Ok(anything_else), TemplateParserFsm::Idle) => result.push(Token {
+            (Ok(anything_else), TemplateAccumulator::Idle) => result.push(Token {
                 token_type: TokenType::Normal,
                 token_text: None,
                 xml_reader_event: anything_else.clone(),
