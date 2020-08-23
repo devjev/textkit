@@ -69,5 +69,7 @@
   "myPlaceholder": "Hello",
   "yourPlaceholder": "world",
   "thisIsTrue": true,
-  "thisIsFalse": false
+  "thisIsFalse": false,
+  "modelName": "Example Model    ",
+  "modelId": "1234567"
 }
