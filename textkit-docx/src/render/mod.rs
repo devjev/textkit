@@ -1,8 +1,10 @@
 mod datakit_table;
+pub mod jupyter_nb;
 
 use crate::errors::TextkitDocxError;
 use crate::{Token, TokenType, NS_WP_ML};
 pub(crate) use datakit_table::datakit_table_to_tokens;
+pub(crate) use jupyter_nb::jupyter_nb_to_tokens;
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::io::Cursor;

@@ -1,6 +1,6 @@
 pub mod errors;
-pub(crate) mod parse;
-pub(crate) mod render;
+pub mod parse;
+pub mod render;
 pub mod template;
 
 pub use crate::template::DocxTemplate;

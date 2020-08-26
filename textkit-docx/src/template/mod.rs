@@ -5,8 +5,8 @@ use crate::{
     errors::TextkitDocxError,
     parse::{find_template_areas, parse_page_dimensions, unzip_text_file, xml_to_token_vec},
     render::{
-        datakit_table_to_tokens, new_zip_bytes_with_document_xml, render_and_paste_tokens,
-        write_token_vector_to_string,
+        datakit_table_to_tokens, jupyter_nb::*, new_zip_bytes_with_document_xml,
+        render_and_paste_tokens, write_token_vector_to_string,
     },
     DocxPayload, PageDimensions, TemplateArea, TemplatePlaceholder, Token, TokenType, PAT_HB_ALL,
 };
@@ -161,6 +161,17 @@ impl DocxTemplate {
                                                 datakit_table_to_tokens(&table, &self.dimensions);
                                             result.extend(table_tokens);
                                         }
+                                    } else if helper_name == "jupyter" {
+                                        if let Some(jupyter_nb) =
+                                            serialized_data.get(&placeholder.expression)
+                                        {
+                                            let notebook: JupyterNotebook =
+                                                serde_json::from_value(jupyter_nb.clone())?;
+                                            let notebook_tokens = jupyter_nb_to_tokens(&notebook);
+                                            result.extend(notebook_tokens);
+                                        }
+                                    } else {
+                                        // Currently we just ignore anythign else.
                                     }
                                 }
                             }

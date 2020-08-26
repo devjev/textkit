@@ -144,4 +144,79 @@ data as a table, the output should be.
 </w:p>
 ```
 
-Fixed in v0.1.3.
+**Fixed in v0.1.3.**
+
+## Jupyter Notebooks
+
+**Goal**: Add the ability to render Jupyter Notebooks down into Word files by
+doing something like `{{jupyter my_notebook}}`.
+
+Good news: Jupyter Notebooks are just long JSON files.
+
+## Adding Images
+
+Here's how to add images to a docx file, AFAIK:
+
+1. Add an entry to the `word/_rels/document.xml.rels` file containing the name
+   of the image file. Like so:
+   ```xml
+   <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+        ...
+        <Relationship
+            Id="rId4"
+            Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
+            Target="media/image1.png"/>
+   </Relationships>
+   ```
+2. Add the file as `media/image1.png` to the DOCX zip.
+3. Add the following markup to the `word/document.xml`:
+   ```xml
+      <w:p w14:paraId="6BAD9101" w14:textId="0DE1D2E6" w:rsidR="00F6259F" w:rsidRDefault="00121631">
+         <w:r>
+            <w:rPr>
+               <w:noProof/>
+            </w:rPr>
+            <w:drawing>
+               <wp:inline distT="0" distB="0" distL="0" distR="0" wp14:anchorId="2B64807F" wp14:editId="3291176C">
+                  <wp:extent cx="5943600" cy="4243705"/>
+                  <wp:effectExtent l="0" t="0" r="0" b="4445"/>
+                  <wp:docPr id="1" name="Picture 1" descr="A picture containing bird, tree, flower&#xA;&#xA;Description automatically generated"/>
+                  <wp:cNvGraphicFramePr>
+                        <a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/>
+                  </wp:cNvGraphicFramePr>
+                  <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+                        <a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                           <pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">
+                              <pic:nvPicPr>
+                                    <pic:cNvPr id="1" name="Picture 1" descr="A picture containing bird, tree, flower&#xA;&#xA;Description automatically generated"/>
+                                    <pic:cNvPicPr/>
+                              </pic:nvPicPr>
+                              <pic:blipFill>
+                                    <a:blip r:embed="rId4">
+                                       <a:extLst>
+                                          <a:ext uri="{28A0092B-C50C-407E-A947-70E740481C1C}">
+                                                <a14:useLocalDpi xmlns:a14="http://schemas.microsoft.com/office/drawing/2010/main" val="0"/>
+                                          </a:ext>
+                                       </a:extLst>
+                                    </a:blip>
+                                    <a:stretch>
+                                       <a:fillRect/>
+                                    </a:stretch>
+                              </pic:blipFill>
+                              <pic:spPr>
+                                    <a:xfrm>
+                                       <a:off x="0" y="0"/>
+                                       <a:ext cx="5943600" cy="4243705"/>
+                                    </a:xfrm>
+                                    <a:prstGeom prst="rect">
+                                       <a:avLst/>
+                                    </a:prstGeom>
+                              </pic:spPr>
+                           </pic:pic>
+                        </a:graphicData>
+                  </a:graphic>
+               </wp:inline>
+            </w:drawing>
+      </w:r>
+   </w:p>
+   ```
