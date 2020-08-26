@@ -22,7 +22,7 @@ pub(crate) fn datakit_table_to_tokens(table: &Table, dims: &PageDimensions) -> V
     // <w:tblStyle w:val="TableGrid" />
     result.push(Token {
         token_type: TokenType::Normal,
-        xml_reader_event: make_start_tag_event("tblStyle", Some(&[("val", "TableGrid")])),
+        xml_reader_event: make_start_tag_event("tblStyle", Some(&[("w", "val", "TableGrid")])),
         token_text: None,
     });
     result.push(Token {
@@ -34,7 +34,10 @@ pub(crate) fn datakit_table_to_tokens(table: &Table, dims: &PageDimensions) -> V
     // <w:tblW w:w="0" w:type="auto" />
     result.push(Token {
         token_type: TokenType::Normal,
-        xml_reader_event: make_start_tag_event("tblW", Some(&[("w", "0"), ("type", "auto")])),
+        xml_reader_event: make_start_tag_event(
+            "tblW",
+            Some(&[("w", "w", "0"), ("w", "type", "auto")]),
+        ),
         token_text: None,
     });
     result.push(Token {
@@ -56,13 +59,13 @@ pub(crate) fn datakit_table_to_tokens(table: &Table, dims: &PageDimensions) -> V
         xml_reader_event: make_start_tag_event(
             "tblLook",
             Some(&[
-                ("val", "04A0"),
-                ("firstRow", "1"),
-                ("lastRow", "0"),
-                ("firstColumn", "1"),
-                ("lastColumn", "0"),
-                ("noHBand", "0"),
-                ("noVBand", "1"),
+                ("w", "val", "04A0"),
+                ("w", "firstRow", "1"),
+                ("w", "lastRow", "0"),
+                ("w", "firstColumn", "1"),
+                ("w", "lastColumn", "0"),
+                ("w", "noHBand", "0"),
+                ("w", "noVBand", "1"),
             ]),
         ),
         token_text: None,
@@ -97,7 +100,7 @@ pub(crate) fn datakit_table_to_tokens(table: &Table, dims: &PageDimensions) -> V
         // <w:gridCol w:w="<COL_WIDTH>"
         result.push(Token {
             token_type: TokenType::Normal,
-            xml_reader_event: make_start_tag_event("gridCol", Some(&[("w", &col_width_str)])),
+            xml_reader_event: make_start_tag_event("gridCol", Some(&[("w", "w", &col_width_str)])),
             token_text: None,
         });
         result.push(Token {
@@ -146,7 +149,7 @@ pub(crate) fn datakit_table_to_tokens(table: &Table, dims: &PageDimensions) -> V
                 token_type: TokenType::Normal,
                 xml_reader_event: make_start_tag_event(
                     "tcW",
-                    Some(&[("w", &col_width_str), ("type", "dxa")]),
+                    Some(&[("w", "w", &col_width_str), ("w", "type", "dxa")]),
                 ),
                 token_text: None,
             });

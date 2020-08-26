@@ -1,18 +1,13 @@
 use clap::Clap;
 use std::fs::File;
-use std::io::Read;
 use std::io::{Error, ErrorKind, Write};
 use std::path::PathBuf;
 use textkit_docx::DocxTemplate;
-
-// Jupyter DOMOs
-use textkit_docx::render::jupyter_nb::*;
 
 fn main() -> std::io::Result<()> {
     let opts = Options::parse();
     match opts.subcmd {
         SubCommand::DocxTemplate(subcmd_opts) => docx_template_apply(subcmd_opts),
-        SubCommand::JupyterConvert(subcmd_opts) => jupyter_to_docx(subcmd_opts),
     }
 }
 
@@ -56,15 +51,6 @@ fn docx_template_apply(opts: DocxTemplateOptions) -> std::io::Result<()> {
     }
 }
 
-fn jupyter_to_docx(opts: JupyterParsingOptions) -> std::io::Result<()> {
-    let mut fh = File::open(opts.jupyter_notebook)?;
-    let mut json_payload = String::new();
-    fh.read_to_string(&mut json_payload)?;
-    let nb: JupyterNotebook = serde_json::from_str(&json_payload)?;
-    jupyter_nb_to_tokens_proto(&nb);
-    Ok(())
-}
-
 #[derive(Clap, Debug)]
 #[clap(version = "0.1.0", author = "Jevgeni Tarasov <jevgeni@hey.com>")]
 struct Options {
@@ -75,7 +61,6 @@ struct Options {
 #[derive(Clap, Debug)]
 enum SubCommand {
     DocxTemplate(DocxTemplateOptions),
-    JupyterConvert(JupyterParsingOptions),
 }
 
 /// Apply JSON data to a Textkit DOCX template.
@@ -92,10 +77,4 @@ struct DocxTemplateOptions {
     /// Output file name.
     #[clap(short, long)]
     output: PathBuf,
-}
-
-#[derive(Clap, Debug)]
-struct JupyterParsingOptions {
-    #[clap(short, long)]
-    jupyter_notebook: PathBuf,
 }

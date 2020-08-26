@@ -1,7 +1,11 @@
 //! Render Jupyter Notebooks
 //!
 
-use crate::render::{make_end_tag_event, make_paragraph_tokens, make_start_tag_event};
+use crate::render::{
+    make_char_text_tokens, make_end_tag_event, make_heading_prequel_tokens,
+    make_heading_sequel_tokens, make_paragraph_prequel_tokens, make_paragraph_sequel_tokens,
+    make_run_end_token, make_run_start_token, make_start_tag_event,
+};
 use crate::{Token, TokenType};
 use pulldown_cmark::{Options, Parser};
 use serde::{Deserialize, Serialize};
@@ -38,7 +42,7 @@ pub struct JupyterNotebook {
     pub nbformat_minor: usize,
 }
 
-pub fn jupyter_nb_to_tokens_proto(ipynb: &JupyterNotebook) {
+pub(crate) fn jupyter_nb_to_tokens(ipynb: &JupyterNotebook) -> Vec<Token> {
     let mut markdown_options = Options::empty();
     markdown_options.insert(Options::ENABLE_STRIKETHROUGH);
 
@@ -49,11 +53,27 @@ pub fn jupyter_nb_to_tokens_proto(ipynb: &JupyterNotebook) {
             JupyterCellType::Markdown => {
                 let source_s = cell.source.join("\n");
                 let parser = Parser::new_ext(&source_s, markdown_options);
+                let mut is_inline = false;
+
                 for parser_event in parser {
                     match parser_event {
-                        pulldown_cmark::Event::Start(tag) => cmark_tag_to_wp_tag_start(&tag),
-                        pulldown_cmark::Event::Text(x) => println!("text {:#?}", x),
-                        _ => println!("{:#?}", parser_event),
+                        pulldown_cmark::Event::Start(tag) => {
+                            result.extend(cmark_tag_to_wp_tag_start(&tag, &mut is_inline));
+                        }
+                        pulldown_cmark::Event::Text(x) => {
+                            if is_inline {
+                                let text_with_spaces = format!(" {} ", x);
+                                result.extend(make_char_text_tokens(&text_with_spaces, false));
+                            } else {
+                                result.push(make_run_start_token());
+                                result.extend(make_char_text_tokens(&x, true));
+                                result.push(make_run_end_token());
+                            }
+                        }
+                        pulldown_cmark::Event::End(tag) => {
+                            result.extend(cmark_tag_to_wp_tag_end(&tag, &mut is_inline));
+                        }
+                        _ => {}
                     }
                 }
             }
@@ -69,32 +89,72 @@ pub fn jupyter_nb_to_tokens_proto(ipynb: &JupyterNotebook) {
             }
         }
     }
-}
 
-pub(crate) fn jupyter_nb_to_tokens(ipynb: &JupyterNotebook) -> Vec<Token> {
-    let mut result: Vec<Token> = Vec::new();
-
-    for cell in ipynb.cells.iter() {
-        match cell.cell_type {
-            JupyterCellType::Markdown => {
-                let source_s = cell.source.join("\n");
-                // parse markdown here
-            }
-            JupyterCellType::Code => {
-                if let Some(outputs) = &cell.outputs {
-                    // Get either an HTML output or
-                    // Get image/png
-                    println!("{:#?}", outputs);
-                }
-            }
-            JupyterCellType::Raw => {
-                // Produce just raw text
-            }
-        }
-    }
     result
 }
 
-fn cmark_tag_to_wp_tag_start(cmark_tag: &pulldown_cmark::Tag) {
-    //make_start_tag_event(tag_name: &str, attrs: Option<&[(&str, &str)]>)
+// Goal here is to produce a vector of tokens for each cmark_tag.
+fn cmark_tag_to_wp_tag_start(cmark_tag: &pulldown_cmark::Tag, is_inline: &mut bool) -> Vec<Token> {
+    match cmark_tag {
+        pulldown_cmark::Tag::Heading(level) => {
+            let heading_style = format!("Heading{}", level);
+            make_heading_prequel_tokens(&heading_style)
+        }
+        pulldown_cmark::Tag::Paragraph => make_paragraph_prequel_tokens(),
+        pulldown_cmark::Tag::Emphasis => {
+            *is_inline = true;
+            let mut emphasis_start: Vec<Token> = Vec::new();
+            emphasis_start.push(make_run_start_token());
+            emphasis_start.push(Token {
+                token_type: TokenType::Normal,
+                xml_reader_event: make_start_tag_event("rPr", None),
+                token_text: None,
+            });
+            emphasis_start.push(Token {
+                token_type: TokenType::Normal,
+                xml_reader_event: make_start_tag_event("i", None),
+                token_text: None,
+            });
+            emphasis_start.push(Token {
+                token_type: TokenType::Normal,
+                xml_reader_event: make_end_tag_event("i"),
+                token_text: None,
+            });
+            emphasis_start.push(Token {
+                token_type: TokenType::Normal,
+                xml_reader_event: make_start_tag_event("iCs", None),
+                token_text: None,
+            });
+            emphasis_start.push(Token {
+                token_type: TokenType::Normal,
+                xml_reader_event: make_end_tag_event("iCs"),
+                token_text: None,
+            });
+            emphasis_start.push(Token {
+                token_type: TokenType::Normal,
+                xml_reader_event: make_end_tag_event("rPr"),
+                token_text: None,
+            });
+            emphasis_start
+        }
+        x => {
+            println!("other = {:#?}", x);
+            vec![]
+        }
+    }
+}
+
+fn cmark_tag_to_wp_tag_end(cmark_tag: &pulldown_cmark::Tag, is_inline: &mut bool) -> Vec<Token> {
+    match cmark_tag {
+        pulldown_cmark::Tag::Heading(_) => make_heading_sequel_tokens(),
+        pulldown_cmark::Tag::Paragraph => make_paragraph_sequel_tokens(),
+        pulldown_cmark::Tag::Emphasis => {
+            *is_inline = false;
+            vec![make_run_end_token()]
+        }
+        _ => {
+            println!(">>> !!!!!! {:#?}", cmark_tag);
+            vec![]
+        }
+    }
 }

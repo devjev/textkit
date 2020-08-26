@@ -78,7 +78,7 @@ impl DocxTemplate {
         // duplicates.
         let mut already_seen_start_indices: HashSet<usize> = HashSet::new();
 
-        // Also, we need a json serialized version of the data (mimicing Handlebars)
+        // Also, we need a json serialized version of the data (mimicking Handlebars)
         // to render custom complex templates.
         let serialized_data = serde_json::to_value(data)?;
 

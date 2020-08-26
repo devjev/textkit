@@ -65,20 +65,22 @@ pub(crate) fn split_string_by_empty_line(string: &str) -> std::str::Split<&str> 
     }
 }
 
-pub(crate) fn make_owned_name(tag_name: &str) -> xml::name::OwnedName {
+pub(crate) fn make_owned_name(prefix: &str, tag_name: &str) -> xml::name::OwnedName {
     xml::name::OwnedName {
         local_name: tag_name.into(),
         namespace: Some(NS_WP_ML.into()),
-        prefix: Some("w".into()),
+        prefix: Some(prefix.into()),
     }
 }
 
-pub(crate) fn make_owned_attributes(attrs: &[(&str, &str)]) -> Vec<xml::attribute::OwnedAttribute> {
+pub(crate) fn make_owned_attributes(
+    attrs: &[(&str, &str, &str)],
+) -> Vec<xml::attribute::OwnedAttribute> {
     let mut result: Vec<xml::attribute::OwnedAttribute> = Vec::new();
     for attr in attrs.iter() {
-        let (name, value) = attr;
+        let (prefix, name, value) = attr;
         let owned_attribute = xml::attribute::OwnedAttribute {
-            name: make_owned_name(name),
+            name: make_owned_name(prefix, name),
             value: String::from(*value),
         };
         result.push(owned_attribute);
@@ -88,7 +90,7 @@ pub(crate) fn make_owned_attributes(attrs: &[(&str, &str)]) -> Vec<xml::attribut
 
 pub(crate) fn make_start_tag_event(
     tag_name: &str,
-    attrs: Option<&[(&str, &str)]>,
+    attrs: Option<&[(&str, &str, &str)]>,
 ) -> xml::reader::XmlEvent {
     let mut ns: BTreeMap<String, String> = BTreeMap::new();
     ns.insert("w".into(), NS_WP_ML.into());
@@ -100,7 +102,7 @@ pub(crate) fn make_start_tag_event(
     };
 
     xml::reader::XmlEvent::StartElement {
-        name: make_owned_name(tag_name),
+        name: make_owned_name("w", tag_name),
         namespace: xml::namespace::Namespace(ns),
         attributes: attributes,
     }
@@ -108,7 +110,7 @@ pub(crate) fn make_start_tag_event(
 
 pub(crate) fn make_end_tag_event(tag_name: &str) -> xml::reader::XmlEvent {
     xml::reader::XmlEvent::EndElement {
-        name: make_owned_name(tag_name),
+        name: make_owned_name("w", tag_name),
     }
 }
 
@@ -117,54 +119,149 @@ pub(crate) fn make_paragraph_tokens(contents: &str) -> Vec<Token> {
     let paragraphs = split_string_by_empty_line(contents);
 
     for paragraph in paragraphs {
-        // <w:p>
-        result.push(Token {
-            token_type: TokenType::Normal,
-            xml_reader_event: make_start_tag_event("p", None),
-            token_text: None,
-        });
+        let prequel = make_paragraph_prequel_tokens();
+        let run_start = make_run_start_token();
+        let run_end = make_run_end_token();
+        let chars = make_char_text_tokens(paragraph, true);
+        let sequel = make_paragraph_sequel_tokens();
 
-        // <w:r>
-        result.push(Token {
-            token_type: TokenType::Normal,
-            xml_reader_event: make_start_tag_event("r", None),
-            token_text: None,
-        });
+        result.extend(prequel);
+        result.push(run_start);
+        result.extend(chars);
+        result.push(run_end);
+        result.extend(sequel);
+    }
 
-        // <w:t>
-        result.push(Token {
-            token_type: TokenType::Normal,
-            xml_reader_event: make_start_tag_event("t", None),
-            token_text: None,
-        });
+    result
+}
 
-        // Put character data inside the <w:t> element
-        result.push(Token {
-            token_type: TokenType::Normal,
-            xml_reader_event: xml::reader::XmlEvent::Characters(paragraph.into()),
-            token_text: Some(paragraph.into()),
-        });
+pub(crate) fn make_paragraph_prequel_tokens() -> Vec<Token> {
+    let mut result: Vec<Token> = Vec::new();
 
-        // </w:t>
-        result.push(Token {
-            token_type: TokenType::Normal,
-            xml_reader_event: make_end_tag_event("t"),
-            token_text: None,
-        });
+    result.push(Token {
+        token_type: TokenType::Normal,
+        xml_reader_event: make_start_tag_event("p", None),
+        token_text: None,
+    });
 
-        // </w:t>
-        result.push(Token {
-            token_type: TokenType::Normal,
-            xml_reader_event: make_end_tag_event("r"),
-            token_text: None,
-        });
+    result
+}
 
-        // </w:t>
-        result.push(Token {
-            token_type: TokenType::Normal,
-            xml_reader_event: make_end_tag_event("p"),
-            token_text: None,
-        });
+pub(crate) fn make_heading_prequel_tokens(heading_style: &str) -> Vec<Token> {
+    let mut result: Vec<Token> = Vec::new();
+
+    result.push(Token {
+        token_type: TokenType::Normal,
+        xml_reader_event: make_start_tag_event("p", None),
+        token_text: None,
+    });
+
+    result.push(Token {
+        token_type: TokenType::Normal,
+        xml_reader_event: make_start_tag_event("pPr", None),
+        token_text: None,
+    });
+
+    result.push(Token {
+        token_type: TokenType::Normal,
+        xml_reader_event: make_start_tag_event("pStyle", Some(&[("w", "val", heading_style)])),
+        token_text: None,
+    });
+
+    result.push(Token {
+        token_type: TokenType::Normal,
+        xml_reader_event: make_end_tag_event("pStyle"),
+        token_text: None,
+    });
+
+    result.push(Token {
+        token_type: TokenType::Normal,
+        xml_reader_event: make_end_tag_event("pPr"),
+        token_text: None,
+    });
+
+    result
+}
+
+pub(crate) fn make_paragraph_sequel_tokens() -> Vec<Token> {
+    let mut result: Vec<Token> = Vec::new();
+
+    // </w:p>
+    result.push(Token {
+        token_type: TokenType::Normal,
+        xml_reader_event: make_end_tag_event("p"),
+        token_text: None,
+    });
+
+    result
+}
+
+pub(crate) fn make_heading_sequel_tokens() -> Vec<Token> {
+    make_paragraph_sequel_tokens()
+}
+
+pub(crate) fn make_char_text_tokens(contents: &str, preserve_space: bool) -> Vec<Token> {
+    let mut result: Vec<Token> = Vec::new();
+    let attrs: Option<&[(&str, &str, &str)]> = if preserve_space {
+        Some(&[("xml", "space", "preserve")])
+    } else {
+        None
+    };
+
+    // <w:t>
+    result.push(Token {
+        token_type: TokenType::Normal,
+        xml_reader_event: make_start_tag_event("t", attrs),
+        token_text: None,
+    });
+
+    result.push(Token {
+        token_type: TokenType::Normal,
+        xml_reader_event: xml::reader::XmlEvent::Characters(contents.into()),
+        token_text: Some(contents.into()),
+    });
+
+    // </w:t>
+    result.push(Token {
+        token_type: TokenType::Normal,
+        xml_reader_event: make_end_tag_event("t"),
+        token_text: None,
+    });
+
+    result
+}
+
+pub(crate) fn make_run_start_token() -> Token {
+    Token {
+        token_type: TokenType::Normal,
+        xml_reader_event: make_start_tag_event("r", None),
+        token_text: None,
+    }
+}
+
+pub(crate) fn make_run_end_token() -> Token {
+    Token {
+        token_type: TokenType::Normal,
+        xml_reader_event: make_end_tag_event("r"),
+        token_text: None,
+    }
+}
+
+pub(crate) fn make_heading_tokens(contents: &str, heading_style: &str) -> Vec<Token> {
+    let mut result: Vec<Token> = Vec::new();
+    let paragraphs = split_string_by_empty_line(contents);
+
+    for paragraph in paragraphs {
+        let prequel = make_heading_prequel_tokens(heading_style);
+        let run_start = make_run_start_token();
+        let run_end = make_run_end_token();
+        let chars = make_char_text_tokens(paragraph, true);
+        let sequel = make_heading_sequel_tokens();
+        result.extend(prequel);
+        result.push(run_start);
+        result.extend(chars);
+        result.push(run_end);
+        result.extend(sequel);
     }
 
     result
@@ -227,6 +324,7 @@ pub(crate) fn write_token_vector_to_string(
         .create_writer(cursor);
 
     for item in tokens.iter() {
+        //println!("item = {:#?}", item);
         if let Some(writer_event) = item.xml_reader_event.as_writer_event() {
             // the .write method returns a result, the error value of which is
             // of type xml::writer::emitter::EmitterError, which is private...
