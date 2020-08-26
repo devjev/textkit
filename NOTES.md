@@ -128,7 +128,7 @@ data as a table, the output should be.
 
 ## Bugs With Broken Up Text Runs
 
-```
+```xml
 <w:p w14:paraId="0EF41D1A" w14:textId="4124C809" w:rsidR="00A56FB5" w:rsidRDefault="00A56FB5">
     <w:r>
         <w:t>{{</w:t>
@@ -220,3 +220,4 @@ Here's how to add images to a docx file, AFAIK:
       </w:r>
    </w:p>
    ```
+   The URI in the `<a:ext uri=...>` element doesn't seem to be referenced anywhere else in the document.
