@@ -135,6 +135,142 @@ pub(crate) fn make_paragraph_tokens(contents: &str) -> Vec<Token> {
     result
 }
 
+pub(crate) fn make_monospace_paragraph_tokens(contents: &str) -> Vec<Token> {
+    let mut result: Vec<Token> = Vec::new();
+    let paragraphs = split_string_by_empty_line(contents);
+
+    for paragraph in paragraphs {
+        let prequel = make_paragraph_prequel_tokens();
+        let run_start = make_run_start_token();
+        let run_end = make_run_end_token();
+        let chars = make_char_text_tokens(paragraph, true);
+        let sequel = make_paragraph_sequel_tokens();
+
+        result.extend(prequel);
+
+        /* add this to paragraph prequel
+        <w:pPr>
+            <w:rPr>
+                <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/>
+                <w:sz w:val="16"/>
+                <w:szCs w:val="16"/>
+            </w:rPr>
+        </w:pPr>
+        */
+        result.push(Token {
+            token_type: TokenType::Normal,
+            xml_reader_event: make_start_tag_event("pPr", None),
+            token_text: None,
+        });
+        result.push(Token {
+            token_type: TokenType::Normal,
+            xml_reader_event: make_start_tag_event("rPr", None),
+            token_text: None,
+        });
+        result.push(Token {
+            token_type: TokenType::Normal,
+            xml_reader_event: make_start_tag_event(
+                "rFonts",
+                Some(&[("w", "ascii", "Consolas"), ("w", "hAnsi", "Consolas")]),
+            ),
+            token_text: None,
+        });
+        result.push(Token {
+            token_type: TokenType::Normal,
+            xml_reader_event: make_end_tag_event("rFonts"),
+            token_text: None,
+        });
+        result.push(Token {
+            token_type: TokenType::Normal,
+            xml_reader_event: make_start_tag_event("sz", Some(&[("w", "val", "16")])),
+            token_text: None,
+        });
+        result.push(Token {
+            token_type: TokenType::Normal,
+            xml_reader_event: make_end_tag_event("sz"),
+            token_text: None,
+        });
+        result.push(Token {
+            token_type: TokenType::Normal,
+            xml_reader_event: make_start_tag_event("szCs", Some(&[("w", "val", "16")])),
+            token_text: None,
+        });
+        result.push(Token {
+            token_type: TokenType::Normal,
+            xml_reader_event: make_end_tag_event("szCs"),
+            token_text: None,
+        });
+        result.push(Token {
+            token_type: TokenType::Normal,
+            xml_reader_event: make_end_tag_event("rPr"),
+            token_text: None,
+        });
+        result.push(Token {
+            token_type: TokenType::Normal,
+            xml_reader_event: make_end_tag_event("pPr"),
+            token_text: None,
+        });
+
+        result.push(run_start);
+
+        /* add this to run prequel
+        <w:rPr>
+            <w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/>
+            <w:sz w:val="16"/>
+            <w:szCs w:val="16"/>
+        </w:rPr>
+        */
+        result.push(Token {
+            token_type: TokenType::Normal,
+            xml_reader_event: make_start_tag_event("rPr", None),
+            token_text: None,
+        });
+        result.push(Token {
+            token_type: TokenType::Normal,
+            xml_reader_event: make_start_tag_event(
+                "rFonts",
+                Some(&[("w", "ascii", "Consolas"), ("w", "hAnsi", "Consolas")]),
+            ),
+            token_text: None,
+        });
+        result.push(Token {
+            token_type: TokenType::Normal,
+            xml_reader_event: make_end_tag_event("rFonts"),
+            token_text: None,
+        });
+        result.push(Token {
+            token_type: TokenType::Normal,
+            xml_reader_event: make_start_tag_event("sz", Some(&[("w", "val", "16")])),
+            token_text: None,
+        });
+        result.push(Token {
+            token_type: TokenType::Normal,
+            xml_reader_event: make_end_tag_event("sz"),
+            token_text: None,
+        });
+        result.push(Token {
+            token_type: TokenType::Normal,
+            xml_reader_event: make_start_tag_event("szCs", Some(&[("w", "val", "16")])),
+            token_text: None,
+        });
+        result.push(Token {
+            token_type: TokenType::Normal,
+            xml_reader_event: make_end_tag_event("szCs"),
+            token_text: None,
+        });
+        result.push(Token {
+            token_type: TokenType::Normal,
+            xml_reader_event: make_end_tag_event("rPr"),
+            token_text: None,
+        });
+        result.extend(chars);
+        result.push(run_end);
+        result.extend(sequel);
+    }
+
+    result
+}
+
 pub(crate) fn make_paragraph_prequel_tokens() -> Vec<Token> {
     let mut result: Vec<Token> = Vec::new();
 
@@ -324,7 +460,6 @@ pub(crate) fn write_token_vector_to_string(
         .create_writer(cursor);
 
     for item in tokens.iter() {
-        //println!("item = {:#?}", item);
         if let Some(writer_event) = item.xml_reader_event.as_writer_event() {
             // the .write method returns a result, the error value of which is
             // of type xml::writer::emitter::EmitterError, which is private...

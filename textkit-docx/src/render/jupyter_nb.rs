@@ -3,8 +3,8 @@
 
 use crate::render::{
     make_char_text_tokens, make_end_tag_event, make_heading_prequel_tokens,
-    make_heading_sequel_tokens, make_paragraph_prequel_tokens, make_paragraph_sequel_tokens,
-    make_run_end_token, make_run_start_token, make_start_tag_event,
+    make_heading_sequel_tokens, make_monospace_paragraph_tokens, make_paragraph_prequel_tokens,
+    make_paragraph_sequel_tokens, make_run_end_token, make_run_start_token, make_start_tag_event,
 };
 use crate::{Token, TokenType};
 use pulldown_cmark::{Options, Parser};
@@ -79,9 +79,18 @@ pub(crate) fn jupyter_nb_to_tokens(ipynb: &JupyterNotebook) -> Vec<Token> {
             }
             JupyterCellType::Code => {
                 if let Some(outputs) = &cell.outputs {
-                    // Get either an HTML output or
-                    // Get image/png
-                    //println!("{:#?}", outputs);
+                    for output in outputs.iter() {
+                        if output.data.contains_key("text/plain") {
+                            let value = output.data.get("text/plain").unwrap();
+                            let text_lines: Vec<String> =
+                                serde_json::from_value(value.clone()).unwrap();
+                            for line in text_lines.iter() {
+                                result.extend(make_monospace_paragraph_tokens(line));
+                            }
+                        }
+
+                        // TODO deal with "image/png" here
+                    }
                 }
             }
             JupyterCellType::Raw => {
