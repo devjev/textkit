@@ -1,10 +1,8 @@
-mod datakit_table;
+pub mod datakit_table;
 pub mod jupyter_nb;
 
 use crate::errors::TextkitDocxError;
 use crate::{Token, TokenType, NS_WP_ML};
-pub(crate) use datakit_table::datakit_table_to_tokens;
-pub(crate) use jupyter_nb::jupyter_nb_to_tokens;
 use serde::Serialize;
 use std::collections::BTreeMap;
 use std::io::Cursor;
@@ -383,25 +381,25 @@ pub(crate) fn make_run_end_token() -> Token {
     }
 }
 
-pub(crate) fn make_heading_tokens(contents: &str, heading_style: &str) -> Vec<Token> {
-    let mut result: Vec<Token> = Vec::new();
-    let paragraphs = split_string_by_empty_line(contents);
+// pub(crate) fn make_heading_tokens(contents: &str, heading_style: &str) -> Vec<Token> {
+//     let mut result: Vec<Token> = Vec::new();
+//     let paragraphs = split_string_by_empty_line(contents);
 
-    for paragraph in paragraphs {
-        let prequel = make_heading_prequel_tokens(heading_style);
-        let run_start = make_run_start_token();
-        let run_end = make_run_end_token();
-        let chars = make_char_text_tokens(paragraph, true);
-        let sequel = make_heading_sequel_tokens();
-        result.extend(prequel);
-        result.push(run_start);
-        result.extend(chars);
-        result.push(run_end);
-        result.extend(sequel);
-    }
+//     for paragraph in paragraphs {
+//         let prequel = make_heading_prequel_tokens(heading_style);
+//         let run_start = make_run_start_token();
+//         let run_end = make_run_end_token();
+//         let chars = make_char_text_tokens(paragraph, true);
+//         let sequel = make_heading_sequel_tokens();
+//         result.extend(prequel);
+//         result.push(run_start);
+//         result.extend(chars);
+//         result.push(run_end);
+//         result.extend(sequel);
+//     }
 
-    result
-}
+//     result
+// }
 
 pub(crate) fn render_and_paste_tokens<T: Serialize>(
     template_tokens: &[Token],

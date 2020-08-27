@@ -5,7 +5,7 @@ use crate::{
     errors::TextkitDocxError,
     parse::{find_template_areas, parse_page_dimensions, unzip_text_file, xml_to_token_vec},
     render::{
-        datakit_table_to_tokens, jupyter_nb::*, new_zip_bytes_with_document_xml,
+        datakit_table::datakit_table_to_tokens, jupyter_nb::*, new_zip_bytes_with_document_xml,
         render_and_paste_tokens, write_token_vector_to_string,
     },
     DocxPayload, PageDimensions, TemplateArea, TemplatePlaceholder, Token, TokenType, PAT_HB_ALL,
