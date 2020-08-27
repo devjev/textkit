@@ -63,7 +63,7 @@ pub(crate) fn split_string_by_empty_line(string: &str) -> std::str::Split<&str> 
     }
 }
 
-pub(crate) fn make_owned_name(prefix: &str, tag_name: &str) -> xml::name::OwnedName {
+pub(crate) fn owned_name(prefix: &str, tag_name: &str) -> xml::name::OwnedName {
     xml::name::OwnedName {
         local_name: tag_name.into(),
         namespace: Some(NS_WP_ML.into()),
@@ -71,14 +71,14 @@ pub(crate) fn make_owned_name(prefix: &str, tag_name: &str) -> xml::name::OwnedN
     }
 }
 
-pub(crate) fn make_owned_attributes(
+pub(crate) fn owned_attributes(
     attrs: &[(&str, &str, &str)],
 ) -> Vec<xml::attribute::OwnedAttribute> {
     let mut result: Vec<xml::attribute::OwnedAttribute> = Vec::new();
     for attr in attrs.iter() {
         let (prefix, name, value) = attr;
         let owned_attribute = xml::attribute::OwnedAttribute {
-            name: make_owned_name(prefix, name),
+            name: owned_name(prefix, name),
             value: String::from(*value),
         };
         result.push(owned_attribute);
@@ -86,7 +86,7 @@ pub(crate) fn make_owned_attributes(
     result
 }
 
-pub(crate) fn make_start_tag_event(
+pub(crate) fn start_tag_event(
     tag_name: &str,
     attrs: Option<&[(&str, &str, &str)]>,
 ) -> xml::reader::XmlEvent {
@@ -94,34 +94,34 @@ pub(crate) fn make_start_tag_event(
     ns.insert("w".into(), NS_WP_ML.into());
 
     let attributes: Vec<xml::attribute::OwnedAttribute> = if let Some(supplied_attrs) = attrs {
-        make_owned_attributes(supplied_attrs)
+        owned_attributes(supplied_attrs)
     } else {
         vec![]
     };
 
     xml::reader::XmlEvent::StartElement {
-        name: make_owned_name("w", tag_name),
+        name: owned_name("w", tag_name),
         namespace: xml::namespace::Namespace(ns),
         attributes: attributes,
     }
 }
 
-pub(crate) fn make_end_tag_event(tag_name: &str) -> xml::reader::XmlEvent {
+pub(crate) fn end_tag_event(tag_name: &str) -> xml::reader::XmlEvent {
     xml::reader::XmlEvent::EndElement {
-        name: make_owned_name("w", tag_name),
+        name: owned_name("w", tag_name),
     }
 }
 
-pub(crate) fn make_paragraph_tokens(contents: &str) -> Vec<Token> {
+pub(crate) fn paragraph_tokens(contents: &str) -> Vec<Token> {
     let mut result: Vec<Token> = Vec::new();
     let paragraphs = split_string_by_empty_line(contents);
 
     for paragraph in paragraphs {
-        let prequel = make_paragraph_prequel_tokens();
-        let run_start = make_run_start_token();
-        let run_end = make_run_end_token();
-        let chars = make_char_text_tokens(paragraph, true);
-        let sequel = make_paragraph_sequel_tokens();
+        let prequel = paragraph_prequel_tokens();
+        let run_start = run_start_token();
+        let run_end = run_end_token();
+        let chars = char_text_tokens(paragraph, true);
+        let sequel = paragraph_sequel_tokens();
 
         result.extend(prequel);
         result.push(run_start);
@@ -133,16 +133,16 @@ pub(crate) fn make_paragraph_tokens(contents: &str) -> Vec<Token> {
     result
 }
 
-pub(crate) fn make_monospace_paragraph_tokens(contents: &str) -> Vec<Token> {
+pub(crate) fn monospace_paragraph_tokens(contents: &str) -> Vec<Token> {
     let mut result: Vec<Token> = Vec::new();
     let paragraphs = split_string_by_empty_line(contents);
 
     for paragraph in paragraphs {
-        let prequel = make_paragraph_prequel_tokens();
-        let run_start = make_run_start_token();
-        let run_end = make_run_end_token();
-        let chars = make_char_text_tokens(paragraph, true);
-        let sequel = make_paragraph_sequel_tokens();
+        let prequel = paragraph_prequel_tokens();
+        let run_start = run_start_token();
+        let run_end = run_end_token();
+        let chars = char_text_tokens(paragraph, true);
+        let sequel = paragraph_sequel_tokens();
 
         result.extend(prequel);
 
@@ -157,17 +157,17 @@ pub(crate) fn make_monospace_paragraph_tokens(contents: &str) -> Vec<Token> {
         */
         result.push(Token {
             token_type: TokenType::Normal,
-            xml_reader_event: make_start_tag_event("pPr", None),
+            xml_reader_event: start_tag_event("pPr", None),
             token_text: None,
         });
         result.push(Token {
             token_type: TokenType::Normal,
-            xml_reader_event: make_start_tag_event("rPr", None),
+            xml_reader_event: start_tag_event("rPr", None),
             token_text: None,
         });
         result.push(Token {
             token_type: TokenType::Normal,
-            xml_reader_event: make_start_tag_event(
+            xml_reader_event: start_tag_event(
                 "rFonts",
                 Some(&[("w", "ascii", "Consolas"), ("w", "hAnsi", "Consolas")]),
             ),
@@ -175,37 +175,37 @@ pub(crate) fn make_monospace_paragraph_tokens(contents: &str) -> Vec<Token> {
         });
         result.push(Token {
             token_type: TokenType::Normal,
-            xml_reader_event: make_end_tag_event("rFonts"),
+            xml_reader_event: end_tag_event("rFonts"),
             token_text: None,
         });
         result.push(Token {
             token_type: TokenType::Normal,
-            xml_reader_event: make_start_tag_event("sz", Some(&[("w", "val", "16")])),
+            xml_reader_event: start_tag_event("sz", Some(&[("w", "val", "16")])),
             token_text: None,
         });
         result.push(Token {
             token_type: TokenType::Normal,
-            xml_reader_event: make_end_tag_event("sz"),
+            xml_reader_event: end_tag_event("sz"),
             token_text: None,
         });
         result.push(Token {
             token_type: TokenType::Normal,
-            xml_reader_event: make_start_tag_event("szCs", Some(&[("w", "val", "16")])),
+            xml_reader_event: start_tag_event("szCs", Some(&[("w", "val", "16")])),
             token_text: None,
         });
         result.push(Token {
             token_type: TokenType::Normal,
-            xml_reader_event: make_end_tag_event("szCs"),
+            xml_reader_event: end_tag_event("szCs"),
             token_text: None,
         });
         result.push(Token {
             token_type: TokenType::Normal,
-            xml_reader_event: make_end_tag_event("rPr"),
+            xml_reader_event: end_tag_event("rPr"),
             token_text: None,
         });
         result.push(Token {
             token_type: TokenType::Normal,
-            xml_reader_event: make_end_tag_event("pPr"),
+            xml_reader_event: end_tag_event("pPr"),
             token_text: None,
         });
 
@@ -220,12 +220,12 @@ pub(crate) fn make_monospace_paragraph_tokens(contents: &str) -> Vec<Token> {
         */
         result.push(Token {
             token_type: TokenType::Normal,
-            xml_reader_event: make_start_tag_event("rPr", None),
+            xml_reader_event: start_tag_event("rPr", None),
             token_text: None,
         });
         result.push(Token {
             token_type: TokenType::Normal,
-            xml_reader_event: make_start_tag_event(
+            xml_reader_event: start_tag_event(
                 "rFonts",
                 Some(&[("w", "ascii", "Consolas"), ("w", "hAnsi", "Consolas")]),
             ),
@@ -233,32 +233,32 @@ pub(crate) fn make_monospace_paragraph_tokens(contents: &str) -> Vec<Token> {
         });
         result.push(Token {
             token_type: TokenType::Normal,
-            xml_reader_event: make_end_tag_event("rFonts"),
+            xml_reader_event: end_tag_event("rFonts"),
             token_text: None,
         });
         result.push(Token {
             token_type: TokenType::Normal,
-            xml_reader_event: make_start_tag_event("sz", Some(&[("w", "val", "16")])),
+            xml_reader_event: start_tag_event("sz", Some(&[("w", "val", "16")])),
             token_text: None,
         });
         result.push(Token {
             token_type: TokenType::Normal,
-            xml_reader_event: make_end_tag_event("sz"),
+            xml_reader_event: end_tag_event("sz"),
             token_text: None,
         });
         result.push(Token {
             token_type: TokenType::Normal,
-            xml_reader_event: make_start_tag_event("szCs", Some(&[("w", "val", "16")])),
+            xml_reader_event: start_tag_event("szCs", Some(&[("w", "val", "16")])),
             token_text: None,
         });
         result.push(Token {
             token_type: TokenType::Normal,
-            xml_reader_event: make_end_tag_event("szCs"),
+            xml_reader_event: end_tag_event("szCs"),
             token_text: None,
         });
         result.push(Token {
             token_type: TokenType::Normal,
-            xml_reader_event: make_end_tag_event("rPr"),
+            xml_reader_event: end_tag_event("rPr"),
             token_text: None,
         });
         result.extend(chars);
@@ -269,72 +269,72 @@ pub(crate) fn make_monospace_paragraph_tokens(contents: &str) -> Vec<Token> {
     result
 }
 
-pub(crate) fn make_paragraph_prequel_tokens() -> Vec<Token> {
+pub(crate) fn paragraph_prequel_tokens() -> Vec<Token> {
     let mut result: Vec<Token> = Vec::new();
 
     result.push(Token {
         token_type: TokenType::Normal,
-        xml_reader_event: make_start_tag_event("p", None),
+        xml_reader_event: start_tag_event("p", None),
         token_text: None,
     });
 
     result
 }
 
-pub(crate) fn make_heading_prequel_tokens(heading_style: &str) -> Vec<Token> {
+pub(crate) fn heading_prequel_tokens(heading_style: &str) -> Vec<Token> {
     let mut result: Vec<Token> = Vec::new();
 
     result.push(Token {
         token_type: TokenType::Normal,
-        xml_reader_event: make_start_tag_event("p", None),
+        xml_reader_event: start_tag_event("p", None),
         token_text: None,
     });
 
     result.push(Token {
         token_type: TokenType::Normal,
-        xml_reader_event: make_start_tag_event("pPr", None),
+        xml_reader_event: start_tag_event("pPr", None),
         token_text: None,
     });
 
     result.push(Token {
         token_type: TokenType::Normal,
-        xml_reader_event: make_start_tag_event("pStyle", Some(&[("w", "val", heading_style)])),
+        xml_reader_event: start_tag_event("pStyle", Some(&[("w", "val", heading_style)])),
         token_text: None,
     });
 
     result.push(Token {
         token_type: TokenType::Normal,
-        xml_reader_event: make_end_tag_event("pStyle"),
+        xml_reader_event: end_tag_event("pStyle"),
         token_text: None,
     });
 
     result.push(Token {
         token_type: TokenType::Normal,
-        xml_reader_event: make_end_tag_event("pPr"),
+        xml_reader_event: end_tag_event("pPr"),
         token_text: None,
     });
 
     result
 }
 
-pub(crate) fn make_paragraph_sequel_tokens() -> Vec<Token> {
+pub(crate) fn paragraph_sequel_tokens() -> Vec<Token> {
     let mut result: Vec<Token> = Vec::new();
 
     // </w:p>
     result.push(Token {
         token_type: TokenType::Normal,
-        xml_reader_event: make_end_tag_event("p"),
+        xml_reader_event: end_tag_event("p"),
         token_text: None,
     });
 
     result
 }
 
-pub(crate) fn make_heading_sequel_tokens() -> Vec<Token> {
-    make_paragraph_sequel_tokens()
+pub(crate) fn heading_sequel_tokens() -> Vec<Token> {
+    paragraph_sequel_tokens()
 }
 
-pub(crate) fn make_char_text_tokens(contents: &str, preserve_space: bool) -> Vec<Token> {
+pub(crate) fn char_text_tokens(contents: &str, preserve_space: bool) -> Vec<Token> {
     let mut result: Vec<Token> = Vec::new();
     let attrs: Option<&[(&str, &str, &str)]> = if preserve_space {
         Some(&[("xml", "space", "preserve")])
@@ -345,7 +345,7 @@ pub(crate) fn make_char_text_tokens(contents: &str, preserve_space: bool) -> Vec
     // <w:t>
     result.push(Token {
         token_type: TokenType::Normal,
-        xml_reader_event: make_start_tag_event("t", attrs),
+        xml_reader_event: start_tag_event("t", attrs),
         token_text: None,
     });
 
@@ -358,39 +358,39 @@ pub(crate) fn make_char_text_tokens(contents: &str, preserve_space: bool) -> Vec
     // </w:t>
     result.push(Token {
         token_type: TokenType::Normal,
-        xml_reader_event: make_end_tag_event("t"),
+        xml_reader_event: end_tag_event("t"),
         token_text: None,
     });
 
     result
 }
 
-pub(crate) fn make_run_start_token() -> Token {
+pub(crate) fn run_start_token() -> Token {
     Token {
         token_type: TokenType::Normal,
-        xml_reader_event: make_start_tag_event("r", None),
+        xml_reader_event: start_tag_event("r", None),
         token_text: None,
     }
 }
 
-pub(crate) fn make_run_end_token() -> Token {
+pub(crate) fn run_end_token() -> Token {
     Token {
         token_type: TokenType::Normal,
-        xml_reader_event: make_end_tag_event("r"),
+        xml_reader_event: end_tag_event("r"),
         token_text: None,
     }
 }
 
-// pub(crate) fn make_heading_tokens(contents: &str, heading_style: &str) -> Vec<Token> {
+// pub(crate) fn heading_tokens(contents: &str, heading_style: &str) -> Vec<Token> {
 //     let mut result: Vec<Token> = Vec::new();
 //     let paragraphs = split_string_by_empty_line(contents);
 
 //     for paragraph in paragraphs {
-//         let prequel = make_heading_prequel_tokens(heading_style);
-//         let run_start = make_run_start_token();
-//         let run_end = make_run_end_token();
-//         let chars = make_char_text_tokens(paragraph, true);
-//         let sequel = make_heading_sequel_tokens();
+//         let prequel = heading_prequel_tokens(heading_style);
+//         let run_start = run_start_token();
+//         let run_end = run_end_token();
+//         let chars = char_text_tokens(paragraph, true);
+//         let sequel = heading_sequel_tokens();
 //         result.extend(prequel);
 //         result.push(run_start);
 //         result.extend(chars);
@@ -418,7 +418,7 @@ pub(crate) fn render_and_paste_tokens<T: Serialize>(
                 // paragraph formating (and other attributes coming with it)
                 // of where the placeholder was located and use it to produce
                 // DOCX paragraphs in the template. Note, that this is different
-                // to the XML code produced by `make_paragraph_tokens(contents: &str)`,
+                // to the XML code produced by `paragraph_tokens(contents: &str)`,
                 // since that function does not retain any formatting and just
                 // produces "naked" paragraphs.
                 let rendered_chunks = split_string_by_empty_line(&rendered_text);

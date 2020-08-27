@@ -2,9 +2,9 @@
 //!
 
 use crate::render::{
-    make_char_text_tokens, make_end_tag_event, make_heading_prequel_tokens,
-    make_heading_sequel_tokens, make_monospace_paragraph_tokens, make_paragraph_prequel_tokens,
-    make_paragraph_sequel_tokens, make_run_end_token, make_run_start_token, make_start_tag_event,
+    char_text_tokens, end_tag_event, heading_prequel_tokens, heading_sequel_tokens,
+    monospace_paragraph_tokens, paragraph_prequel_tokens, paragraph_sequel_tokens, run_end_token,
+    run_start_token, start_tag_event,
 };
 use crate::{Token, TokenType};
 use pulldown_cmark::{Options, Parser};
@@ -63,11 +63,11 @@ pub(crate) fn jupyter_nb_to_tokens(ipynb: &JupyterNotebook) -> Vec<Token> {
                         pulldown_cmark::Event::Text(x) => {
                             if is_inline {
                                 let text_with_spaces = format!(" {} ", x);
-                                result.extend(make_char_text_tokens(&text_with_spaces, false));
+                                result.extend(char_text_tokens(&text_with_spaces, false));
                             } else {
-                                result.push(make_run_start_token());
-                                result.extend(make_char_text_tokens(&x, true));
-                                result.push(make_run_end_token());
+                                result.push(run_start_token());
+                                result.extend(char_text_tokens(&x, true));
+                                result.push(run_end_token());
                             }
                         }
                         pulldown_cmark::Event::End(tag) => {
@@ -85,7 +85,7 @@ pub(crate) fn jupyter_nb_to_tokens(ipynb: &JupyterNotebook) -> Vec<Token> {
                             let text_lines: Vec<String> =
                                 serde_json::from_value(value.clone()).unwrap();
                             for line in text_lines.iter() {
-                                result.extend(make_monospace_paragraph_tokens(line));
+                                result.extend(monospace_paragraph_tokens(line));
                             }
                         }
 
@@ -107,41 +107,41 @@ fn cmark_tag_to_wp_tag_start(cmark_tag: &pulldown_cmark::Tag, is_inline: &mut bo
     match cmark_tag {
         pulldown_cmark::Tag::Heading(level) => {
             let heading_style = format!("Heading{}", level);
-            make_heading_prequel_tokens(&heading_style)
+            heading_prequel_tokens(&heading_style)
         }
-        pulldown_cmark::Tag::Paragraph => make_paragraph_prequel_tokens(),
+        pulldown_cmark::Tag::Paragraph => paragraph_prequel_tokens(),
         pulldown_cmark::Tag::Emphasis => {
             *is_inline = true;
             let mut emphasis_start: Vec<Token> = Vec::new();
-            emphasis_start.push(make_run_start_token());
+            emphasis_start.push(run_start_token());
             emphasis_start.push(Token {
                 token_type: TokenType::Normal,
-                xml_reader_event: make_start_tag_event("rPr", None),
+                xml_reader_event: start_tag_event("rPr", None),
                 token_text: None,
             });
             emphasis_start.push(Token {
                 token_type: TokenType::Normal,
-                xml_reader_event: make_start_tag_event("i", None),
+                xml_reader_event: start_tag_event("i", None),
                 token_text: None,
             });
             emphasis_start.push(Token {
                 token_type: TokenType::Normal,
-                xml_reader_event: make_end_tag_event("i"),
+                xml_reader_event: end_tag_event("i"),
                 token_text: None,
             });
             emphasis_start.push(Token {
                 token_type: TokenType::Normal,
-                xml_reader_event: make_start_tag_event("iCs", None),
+                xml_reader_event: start_tag_event("iCs", None),
                 token_text: None,
             });
             emphasis_start.push(Token {
                 token_type: TokenType::Normal,
-                xml_reader_event: make_end_tag_event("iCs"),
+                xml_reader_event: end_tag_event("iCs"),
                 token_text: None,
             });
             emphasis_start.push(Token {
                 token_type: TokenType::Normal,
-                xml_reader_event: make_end_tag_event("rPr"),
+                xml_reader_event: end_tag_event("rPr"),
                 token_text: None,
             });
             emphasis_start
@@ -152,11 +152,11 @@ fn cmark_tag_to_wp_tag_start(cmark_tag: &pulldown_cmark::Tag, is_inline: &mut bo
 
 fn cmark_tag_to_wp_tag_end(cmark_tag: &pulldown_cmark::Tag, is_inline: &mut bool) -> Vec<Token> {
     match cmark_tag {
-        pulldown_cmark::Tag::Heading(_) => make_heading_sequel_tokens(),
-        pulldown_cmark::Tag::Paragraph => make_paragraph_sequel_tokens(),
+        pulldown_cmark::Tag::Heading(_) => heading_sequel_tokens(),
+        pulldown_cmark::Tag::Paragraph => paragraph_sequel_tokens(),
         pulldown_cmark::Tag::Emphasis => {
             *is_inline = false;
-            vec![make_run_end_token()]
+            vec![run_end_token()]
         }
         _ => vec![],
     }
