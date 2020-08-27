@@ -106,7 +106,7 @@ pub(crate) fn jupyter_nb_to_tokens(ipynb: &JupyterNotebook) -> Vec<Token> {
 fn cmark_tag_to_wp_tag_start(cmark_tag: &pulldown_cmark::Tag, is_inline: &mut bool) -> Vec<Token> {
     match cmark_tag {
         pulldown_cmark::Tag::Heading(level) => {
-            let heading_style = format!("Heading{}", level + 1);
+            let heading_style = format!("Heading {}", level + 1);
             heading_prequel_tokens(&heading_style)
         }
         pulldown_cmark::Tag::Paragraph => paragraph_prequel_tokens(),
