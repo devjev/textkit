@@ -2,7 +2,7 @@
 authors = ["Jevgeni Tarasov <jevgeni@hey.com>"]
 edition = "2018"
 name = "textkit-docx"
-version = "0.1.6"
+version = "0.1.7"
 
 [dependencies]
 datakit = {git = "https://github.com/devjev/datakit.git"}
