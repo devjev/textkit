@@ -146,10 +146,7 @@ fn cmark_tag_to_wp_tag_start(cmark_tag: &pulldown_cmark::Tag, is_inline: &mut bo
             });
             emphasis_start
         }
-        x => {
-            println!("other = {:#?}", x);
-            vec![]
-        }
+        _ => vec![],
     }
 }
 
@@ -161,9 +158,6 @@ fn cmark_tag_to_wp_tag_end(cmark_tag: &pulldown_cmark::Tag, is_inline: &mut bool
             *is_inline = false;
             vec![make_run_end_token()]
         }
-        _ => {
-            println!(">>> !!!!!! {:#?}", cmark_tag);
-            vec![]
-        }
+        _ => vec![],
     }
 }
