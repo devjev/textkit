@@ -6,3 +6,4 @@ kart-wasm/pkg
 kart-wasm/wasm-pack.log
 __*
 result.docx
+*.zip
