@@ -67,3 +67,53 @@ pub struct PageDimensions {
     pub footer: i32,
     pub gutter: i32,
 }
+
+// Utilities
+
+#[allow(dead_code)]
+pub(crate) fn print_xml_reader_event(rdr_event: &xml::reader::XmlEvent) {
+    match rdr_event {
+        xml::reader::XmlEvent::StartDocument { .. } => {
+            println!("<start_document>");
+        }
+        xml::reader::XmlEvent::EndDocument => {
+            println!("<end_document>");
+        }
+        xml::reader::XmlEvent::ProcessingInstruction { name, .. } => {
+            println!("<processing instructions: name = {} ..>", name);
+        }
+        xml::reader::XmlEvent::StartElement { name, .. } => {
+            if let Some(prefix) = &name.prefix {
+                println!("<{}:{}>", prefix, name.local_name);
+            } else {
+                println!("<{}>", name.local_name);
+            }
+        }
+        xml::reader::XmlEvent::EndElement { name } => {
+            if let Some(prefix) = &name.prefix {
+                println!("</{}:{}>", prefix, name.local_name);
+            } else {
+                println!("</{}>", name.local_name);
+            }
+        }
+        xml::reader::XmlEvent::CData(s) => {
+            println!("<CDATA = {}/>", s);
+        }
+        xml::reader::XmlEvent::Comment(s) => {
+            println!("<Comment = {}/>", s);
+        }
+        xml::reader::XmlEvent::Characters(s) => {
+            println!("<Characters = {}/>", s);
+        }
+        xml::reader::XmlEvent::Whitespace(s) => {
+            println!("<Whitespace = _{}_/>", s);
+        }
+    }
+}
+
+#[allow(dead_code)]
+pub(crate) fn print_tokens(tokens: &Vec<Token>) {
+    for token in tokens.iter() {
+        print_xml_reader_event(&token.xml_reader_event);
+    }
+}

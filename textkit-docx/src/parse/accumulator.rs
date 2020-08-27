@@ -1,4 +1,4 @@
-use crate::{PAT_HB_MLE, PAT_HB_MLS, PAT_HB_SMP};
+use crate::{PAT_HB_CPX, PAT_HB_MLE, PAT_HB_MLS, PAT_HB_SMP};
 use regex::Regex;
 
 #[derive(Debug)]
@@ -20,13 +20,14 @@ pub(crate) enum TemplateAccumulator {
 
 impl TemplateAccumulator {
     pub fn accumulate(&mut self, text: &str) {
-        let start_uncertain = Regex::new(r"\{$").unwrap();
+        let start_uncertain = Regex::new(r"\{").unwrap(); // let start_uncertain = Regex::new(r"\{$").unwrap();
         let start_simple = Regex::new(r"\{\{").unwrap();
         let start_multi = Regex::new(r"\{\{#").unwrap();
         let end_multi = Regex::new(r"\{\{/").unwrap();
         let end_simple = Regex::new(r"\}\}").unwrap();
 
         let simple_ph_well_formed = Regex::new(PAT_HB_SMP).unwrap();
+        let complex_ph_well_formed = Regex::new(PAT_HB_CPX).unwrap();
         let multi_ph_start_well_formed = Regex::new(PAT_HB_MLS).unwrap();
         let multi_ph_end_well_formed = Regex::new(PAT_HB_MLE).unwrap();
 
@@ -42,9 +43,10 @@ impl TemplateAccumulator {
                         acc: text.into(),
                         acc_state: AccumulationMode::Multiline { depth: 0 },
                     }
-                } else if multi_ph_end_well_formed.is_match(text) {
-                    Self::Done(text.into())
-                } else if simple_ph_well_formed.is_match(text) {
+                } else if multi_ph_end_well_formed.is_match(text)
+                    || simple_ph_well_formed.is_match(text)
+                    || complex_ph_well_formed.is_match(text)
+                {
                     Self::Done(text.into())
                 } else if start_uncertain.is_match(text) {
                     Self::Accumulating {
@@ -87,7 +89,9 @@ impl TemplateAccumulator {
                 let mut new_str = acc.clone();
                 new_str.push_str(text);
                 // Terminating case should be working here!!!
-                if end_simple.is_match(&new_str) {
+                if end_simple.is_match(&new_str)
+                    && is_simple_placeholders_completely_closed(&new_str)
+                {
                     Self::Done(new_str)
                 } else {
                     Self::Accumulating {
@@ -136,4 +140,10 @@ impl TemplateAccumulator {
     pub fn reset(&mut self) {
         *self = Self::Idle;
     }
+}
+
+fn is_simple_placeholders_completely_closed(text: &str) -> bool {
+    let no_of_openning_brackets = text.matches("{{").count();
+    let no_of_closing_brackets = text.matches("}}").count();
+    (no_of_openning_brackets - no_of_closing_brackets) == 0
 }

@@ -457,13 +457,14 @@ pub(crate) fn write_token_vector_to_string(
         .perform_indent(true)
         .create_writer(cursor);
 
-    for item in tokens.iter() {
+    for item in tokens {
         if let Some(writer_event) = item.xml_reader_event.as_writer_event() {
             // the .write method returns a result, the error value of which is
             // of type xml::writer::emitter::EmitterError, which is private...
             // So here we are just passing along a token TextkitDocxError
             // instead.
-            if let Err(_) = writer.write(writer_event) {
+            let write_result = writer.write(writer_event);
+            if let Err(_) = write_result {
                 return Err(TextkitDocxError::FailedWriteXml);
             }
         }

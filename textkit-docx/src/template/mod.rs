@@ -147,9 +147,6 @@ impl DocxTemplate {
 
                                     index = placeholder.end_position;
 
-                                    // Right now, there is only one complex template helper:
-                                    // `table` that generates a table if provided with a datakit::Table.
-                                    // Future versions should include dynamic handling of this.
                                     if helper_name == "table" {
                                         // get the bit that's datakit table
                                         if let Some(table_serialized) =
@@ -171,7 +168,6 @@ impl DocxTemplate {
                                             result.extend(notebook_tokens);
                                         }
                                     } else {
-                                        // Currently we just ignore anythign else.
                                     }
                                 }
                             }
