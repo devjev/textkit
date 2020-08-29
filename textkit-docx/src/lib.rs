@@ -11,6 +11,15 @@ use zip::ZipArchive;
 /// Namespace string used in DOCX XML data to denote word processing elements (like paragraphs).
 static NS_WP_ML: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 
+/// Namespace string used in DOCX XML data to denote drawings in the document.
+static NS_WPD_ML: &str = "http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing";
+
+static NS_DWML_MAIN: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
+static NS_DWML_PIC: &str = "http://schemas.openxmlformats.org/drawingml/2006/picture";
+
+/// Relationship Namespace in DOCX
+static NS_REL: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+
 // Regex patterns used to match Handlebars placeholders
 static PAT_HB_ALL: &str = r"\{\{(\S+)\s*([^\{\}]+)?\}\}"; // All placeholders
 static PAT_HB_SMP: &str = r"\{\{\S+\}\}"; // Only simple placeholders
@@ -66,6 +75,20 @@ pub struct PageDimensions {
     pub header: i32,
     pub footer: i32,
     pub gutter: i32,
+}
+
+#[derive(Debug)]
+pub(crate) struct FileContents {
+    pub filename: String,
+    pub payload: Vec<u8>,
+}
+
+#[derive(Debug)]
+pub(crate) struct ImageFileContents {
+    pub file_contents: FileContents,
+    pub width: u32,
+    pub height: u32,
+    // TODO currently assuming 72 ppi
 }
 
 // Utilities

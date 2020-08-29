@@ -3,13 +3,16 @@
 
 use crate::render::{
     char_text_tokens, end_tag_event, heading_prequel_tokens, heading_sequel_tokens,
-    monospace_paragraph_tokens, paragraph_prequel_tokens, paragraph_sequel_tokens, run_end_token,
-    run_start_token, start_tag_event,
+    image_paragraph_tokens, monospace_paragraph_tokens, paragraph_prequel_tokens,
+    paragraph_sequel_tokens, run_end_token, run_start_token, start_tag_event,
 };
-use crate::{Token, TokenType};
+use crate::{FileContents, ImageFileContents};
+use crate::{Token, TokenType, NS_WP_ML};
 use pulldown_cmark::{Options, Parser};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
+use std::io::Cursor;
+use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "snake_case")]
@@ -42,11 +45,16 @@ pub struct JupyterNotebook {
     pub nbformat_minor: usize,
 }
 
-pub(crate) fn jupyter_nb_to_tokens(ipynb: &JupyterNotebook) -> Vec<Token> {
+pub(crate) fn jupyter_nb_to_tokens(
+    ipynb: &JupyterNotebook,
+    start_rels_id: &mut usize,
+    images: &mut BTreeMap<String, ImageFileContents>,
+) -> Vec<Token> {
     let mut markdown_options = Options::empty();
     markdown_options.insert(Options::ENABLE_STRIKETHROUGH);
 
     let mut result: Vec<Token> = Vec::new();
+    let mut image_counter: usize = 1;
 
     for cell in ipynb.cells.iter() {
         match cell.cell_type {
@@ -89,7 +97,36 @@ pub(crate) fn jupyter_nb_to_tokens(ipynb: &JupyterNotebook) -> Vec<Token> {
                             }
                         }
 
-                        // TODO deal with "image/png" here
+                        if output.data.contains_key("image/png") {
+                            let value = output.data.get("image/png").unwrap();
+                            let base64_encoded_string: String =
+                                serde_json::from_value(value.clone()).unwrap();
+
+                            // N.B! Important to trim, because Jupyter seems to add an
+                            // explicit newline character at the end of the Base64 string, for
+                            // some reason.
+                            if let Ok(payload) = base64::decode(base64_encoded_string.trim()) {
+                                *start_rels_id += 1;
+                                let figure_relationship_id = format!("rId{}", start_rels_id);
+                                let filename = format!("figure-{}.png", image_counter);
+                                image_counter += 1;
+                                let (width, height) = get_png_dimensions(&payload);
+                                images.insert(
+                                    figure_relationship_id.clone(),
+                                    ImageFileContents {
+                                        file_contents: FileContents { filename, payload },
+                                        height: height,
+                                        width: width,
+                                    },
+                                );
+                                let tokens =
+                                    image_paragraph_tokens(&figure_relationship_id, width, height);
+                                result.extend(tokens);
+                            } else {
+                                // TODO do some proper error handling or error notifications
+                                // here.
+                            }
+                        }
                     }
                 }
             }
@@ -116,32 +153,65 @@ fn cmark_tag_to_wp_tag_start(cmark_tag: &pulldown_cmark::Tag, is_inline: &mut bo
             emphasis_start.push(run_start_token());
             emphasis_start.push(Token {
                 token_type: TokenType::Normal,
-                xml_reader_event: start_tag_event("rPr", None),
+                // xml_reader_event: start_tag_event("rPr", None),
+                xml_reader_event: start_tag_event(
+                    &Some(String::from("w")),
+                    &Some(String::from(NS_WP_ML)),
+                    &String::from("rPr"),
+                    None,
+                ),
                 token_text: None,
             });
             emphasis_start.push(Token {
                 token_type: TokenType::Normal,
-                xml_reader_event: start_tag_event("i", None),
+                // xml_reader_event: start_tag_event("i", None),
+                xml_reader_event: start_tag_event(
+                    &Some(String::from("w")),
+                    &Some(String::from(NS_WP_ML)),
+                    &String::from("i"),
+                    None,
+                ),
                 token_text: None,
             });
             emphasis_start.push(Token {
                 token_type: TokenType::Normal,
-                xml_reader_event: end_tag_event("i"),
+                // xml_reader_event: end_tag_event("i"),
+                xml_reader_event: end_tag_event(
+                    &Some(String::from("w")),
+                    &Some(String::from(NS_WP_ML)),
+                    &String::from("i"),
+                ),
                 token_text: None,
             });
             emphasis_start.push(Token {
                 token_type: TokenType::Normal,
-                xml_reader_event: start_tag_event("iCs", None),
+                // xml_reader_event: start_tag_event("iCs", None),
+                xml_reader_event: start_tag_event(
+                    &Some(String::from("w")),
+                    &Some(String::from(NS_WP_ML)),
+                    &String::from("iCs"),
+                    None,
+                ),
                 token_text: None,
             });
             emphasis_start.push(Token {
                 token_type: TokenType::Normal,
-                xml_reader_event: end_tag_event("iCs"),
+                // xml_reader_event: end_tag_event("iCs"),
+                xml_reader_event: end_tag_event(
+                    &Some(String::from("w")),
+                    &Some(String::from(NS_WP_ML)),
+                    &String::from("iCs"),
+                ),
                 token_text: None,
             });
             emphasis_start.push(Token {
                 token_type: TokenType::Normal,
-                xml_reader_event: end_tag_event("rPr"),
+                // xml_reader_event: end_tag_event("rPr"),
+                xml_reader_event: end_tag_event(
+                    &Some(String::from("w")),
+                    &Some(String::from(NS_WP_ML)),
+                    &String::from("rPr"),
+                ),
                 token_text: None,
             });
             emphasis_start
@@ -160,4 +230,11 @@ fn cmark_tag_to_wp_tag_end(cmark_tag: &pulldown_cmark::Tag, is_inline: &mut bool
         }
         _ => vec![],
     }
+}
+
+fn get_png_dimensions(png_payload: &[u8]) -> (u32, u32) {
+    let cursor = Cursor::new(png_payload);
+    let decoder = png::Decoder::new(cursor);
+    let (info, _) = decoder.read_info().unwrap();
+    (info.width, info.height)
 }

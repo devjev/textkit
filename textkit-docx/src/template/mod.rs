@@ -5,15 +5,18 @@ use crate::{
     errors::TextkitDocxError,
     parse::{find_template_areas, parse_page_dimensions, unzip_text_file, xml_to_token_vec},
     render::{
-        datakit_table::datakit_table_to_tokens, jupyter_nb::*, new_zip_bytes_with_document_xml,
-        render_and_paste_tokens, write_token_vector_to_string,
+        datakit_table::datakit_table_to_tokens, get_last_id_number_for_document_xml_rels,
+        insert_images_in_document_xml_rels, insert_png_content_type, jupyter_nb::*,
+        new_zip_bytes_with_document_xml, render_and_paste_tokens, replace_file_in_zip,
+        write_token_vector_to_string,
     },
-    DocxPayload, PageDimensions, TemplateArea, TemplatePlaceholder, Token, TokenType, PAT_HB_ALL,
+    DocxPayload, ImageFileContents, PageDimensions, TemplateArea, TemplatePlaceholder, Token,
+    TokenType, PAT_HB_ALL,
 };
 use datakit::table::Table;
 use regex::Regex;
 use serde::Serialize;
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::fs::File;
 use std::io::{Cursor, Read};
 use std::path::PathBuf;
@@ -24,7 +27,11 @@ use zip::ZipArchive;
 pub struct DocxTemplate {
     source_payload: DocxPayload,
     document_xml: String,
+    document_xml_rels: String,
+    content_types: String,
     tokens: Vec<Token>,
+    document_rels_tokens: Vec<Token>,
+    content_types_tokens: Vec<Token>,
     dimensions: PageDimensions,
     template_areas: Vec<TemplateArea>,
 }
@@ -37,15 +44,24 @@ impl DocxTemplate {
 
         let mut source_payload = ZipArchive::new(cursor)?;
         let document_xml = unzip_text_file(&mut source_payload, "word/document.xml")?;
+        let document_xml_rels =
+            unzip_text_file(&mut source_payload, "word/_rels/document.xml.rels")?;
+        let content_types = unzip_text_file(&mut source_payload, "[Content_Types].xml")?;
 
         let tokens = xml_to_token_vec(&document_xml)?;
+        let document_rels_tokens = xml_to_token_vec(&document_xml_rels)?;
+        let content_types_tokens = xml_to_token_vec(&content_types)?;
         let dimensions = parse_page_dimensions(&document_xml)?;
         let template_areas = find_template_areas(&tokens, "p");
 
         Ok(Self {
             source_payload,
             document_xml,
+            document_xml_rels,
+            content_types,
             tokens,
+            document_rels_tokens,
+            content_types_tokens,
             dimensions,
             template_areas,
         })
@@ -64,6 +80,13 @@ impl DocxTemplate {
     pub fn render<T: Serialize>(&self, data: &T) -> Result<Vec<u8>, TextkitDocxError> {
         let mut result: Vec<Token> = Vec::new();
 
+        // Here we track all possible images that need to be added to the DOCX file
+        // via templating (for example, by importing a Jupyter Notebook with charts).
+        // To add images to a DOCX file, not only do we need to modify the `word/document.xml`
+        // file, but also the `word/_rels/document.xml.rels`, as well as adding the file to
+        // `media/<filename>.png`.
+        let mut images: BTreeMap<String, ImageFileContents> = BTreeMap::new();
+
         // This index tracks the position in the `self.tokens` vector of the last
         // non-template token that was processed.
         let mut bookmark_index: usize = 0;
@@ -77,6 +100,10 @@ impl DocxTemplate {
         // rendering happens only at the first TemplateArea, so as to avoid
         // duplicates.
         let mut already_seen_start_indices: HashSet<usize> = HashSet::new();
+
+        // Figure out the latest numerical part of the IDs in word/_rels/document.xml.rels
+        let mut latest_rels_id =
+            get_last_id_number_for_document_xml_rels(&self.document_rels_tokens);
 
         // Also, we need a json serialized version of the data (mimicking Handlebars)
         // to render custom complex templates.
@@ -164,7 +191,11 @@ impl DocxTemplate {
                                         {
                                             let notebook: JupyterNotebook =
                                                 serde_json::from_value(jupyter_nb.clone())?;
-                                            let notebook_tokens = jupyter_nb_to_tokens(&notebook);
+                                            let notebook_tokens = jupyter_nb_to_tokens(
+                                                &notebook,
+                                                &mut latest_rels_id,
+                                                &mut images,
+                                            );
                                             result.extend(notebook_tokens);
                                         }
                                     } else {
@@ -198,7 +229,44 @@ impl DocxTemplate {
         // NOTE Not sure if cloning here is really necessary.
         let mut payload = self.source_payload.clone();
 
-        new_zip_bytes_with_document_xml(&mut payload, &document_xml_contents)
+        // Deal with any potential images that need to be inserted as well.
+        let new_document_xml_rels_tokens =
+            insert_images_in_document_xml_rels(&self.document_rels_tokens, &images);
+
+        let document_xml_rels_contents =
+            write_token_vector_to_string(&new_document_xml_rels_tokens)?;
+
+        let mut new_payload = replace_file_in_zip(
+            &mut payload,
+            "word/_rels/document.xml.rels",
+            &document_xml_rels_contents.as_bytes(),
+        )?;
+        let mut cursor = Cursor::new(new_payload);
+        let mut new_zip = ZipArchive::new(cursor)?;
+
+        for (_, image_contents) in images.iter() {
+            let path_to_image = format!("word/media/{}", image_contents.file_contents.filename);
+            new_payload = replace_file_in_zip(
+                &mut new_zip,
+                &path_to_image,
+                &image_contents.file_contents.payload,
+            )?;
+            cursor = Cursor::new(new_payload);
+            new_zip = ZipArchive::new(cursor)?;
+        }
+
+        let new_content_type_tokens = insert_png_content_type(&self.content_types_tokens);
+        let new_content_type_payload = write_token_vector_to_string(&new_content_type_tokens)?;
+        new_payload = replace_file_in_zip(
+            &mut new_zip,
+            "[Content_Types].xml",
+            new_content_type_payload.as_bytes(),
+        )?;
+
+        cursor = Cursor::new(new_payload);
+        new_zip = ZipArchive::new(cursor)?;
+
+        new_zip_bytes_with_document_xml(&mut new_zip, &document_xml_contents)
     }
 }
 

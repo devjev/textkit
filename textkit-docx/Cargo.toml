@@ -4,16 +4,17 @@ edition = "2018"
 name = "textkit-docx"
 version = "0.1.8"
 
+# N.B! Not using bzip2 in `zip` crate to avoid compilation hassles on WASM targets.
 [dependencies]
+base64 = "^0.12"
 datakit = {git = "https://github.com/devjev/datakit.git"}
 handlebars = "^3"
+png = "^0.16"
 pulldown-cmark = "^0.7"
 regex = "^1"
-scraper = "^0.12"
 serde = {version = "^1", features = ["derive"]}
 serde_json = "^1"
 thiserror = "^1"
+uuid = {version = "^0.8", features = ["v4"]}
 xml-rs = "^0.8"
-# Zip to extract XML contents out of .docx files.
-# N.B! Not using bzip2 to avoid compilation hassles on WASM targets.
 zip = {version = "^0.5", default-features = false, features = ["deflate"]}
