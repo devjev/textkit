@@ -12,7 +12,6 @@ use pulldown_cmark::{Options, Parser};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::io::Cursor;
-use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "snake_case")]

@@ -2,7 +2,6 @@ pub mod datakit_table;
 pub mod jupyter_nb;
 
 use crate::errors::TextkitDocxError;
-use crate::print_xml_reader_event;
 use crate::{
     ImageFileContents, Token, TokenType, NS_DWML_MAIN, NS_DWML_PIC, NS_REL, NS_WPD_ML, NS_WP_ML,
 };
@@ -544,7 +543,7 @@ pub(crate) fn heading_sequel_tokens() -> Vec<Token> {
 
 pub(crate) fn char_text_tokens(contents: &str, preserve_space: bool) -> Vec<Token> {
     let mut result: Vec<Token> = Vec::new();
-    let mut attrs_final: Vec<xml::attribute::OwnedAttribute> = Vec::new();
+    let attrs_final: Vec<xml::attribute::OwnedAttribute>;
     let attrs: Option<&[xml::attribute::OwnedAttribute]> = if preserve_space {
         // Some(&[("xml", "space", "preserve")])
         attrs_final = vec![owned_attribute(
