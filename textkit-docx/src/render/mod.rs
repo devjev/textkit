@@ -638,11 +638,20 @@ pub(crate) fn run_end_token() -> Token {
 //     result
 // }
 
-pub(crate) fn image_paragraph_tokens(relationship_id: &str, width: u32, height: u32) -> Vec<Token> {
+pub(crate) fn image_paragraph_tokens(
+    relationship_id: &str,
+    width: u32,
+    height: u32,
+    serial_number_in_document: usize,
+) -> Vec<Token> {
     let mut result: Vec<Token> = Vec::with_capacity(60);
 
     let width_emu_attr = format!("{}", pixels_to_word_emu(width));
     let height_emu_attr = format!("{}", pixels_to_word_emu(height));
+
+    let serial_id = 10_000 + serial_number_in_document; // Offset the IDs by 10'000 - a dumb way to "ensure" no conflicts with existing
+                                                        // serial ids.
+    let figure_name = format!("Figure {}", serial_number_in_document);
 
     result.extend(paragraph_prequel_tokens());
     result.push(run_start_token());
@@ -764,6 +773,8 @@ pub(crate) fn image_paragraph_tokens(relationship_id: &str, width: u32, height: 
         ),
         token_text: None,
     });
+
+    // TODO THIS NEEDS TO BE UPDATED
     result.push(Token {
         token_type: TokenType::Normal,
         xml_reader_event: start_tag_event(
@@ -771,13 +782,8 @@ pub(crate) fn image_paragraph_tokens(relationship_id: &str, width: u32, height: 
             &Some(String::from(NS_WPD_ML)),
             &String::from("docPr"),
             Some(&vec![
-                owned_attribute(&None, &None, &String::from("id"), &String::from("1")),
-                owned_attribute(
-                    &None,
-                    &None,
-                    &String::from("name"),
-                    &String::from("Picture 1"),
-                ),
+                owned_attribute(&None, &None, &String::from("id"), &format!("{}", serial_id)),
+                owned_attribute(&None, &None, &String::from("name"), &figure_name),
             ]),
         ), // TODO ! Id is weird here
         token_text: None,
@@ -1513,7 +1519,8 @@ pub(crate) fn write_token_vector_to_string(
     let mut buf: Vec<u8> = Vec::new();
     let cursor = Cursor::new(&mut buf);
     let mut writer = EmitterConfig::new()
-        .perform_indent(true)
+        .perform_indent(false)
+        .pad_self_closing(false)
         .create_writer(cursor);
 
     for item in tokens {

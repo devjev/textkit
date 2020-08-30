@@ -108,7 +108,6 @@ pub(crate) fn jupyter_nb_to_tokens(
                                 *start_rels_id += 1;
                                 let figure_relationship_id = format!("rId{}", start_rels_id);
                                 let filename = format!("figure-{}.png", image_counter);
-                                image_counter += 1;
                                 let (width, height) = get_png_dimensions(&payload);
                                 images.insert(
                                     figure_relationship_id.clone(),
@@ -118,9 +117,17 @@ pub(crate) fn jupyter_nb_to_tokens(
                                         width: width,
                                     },
                                 );
-                                let tokens =
-                                    image_paragraph_tokens(&figure_relationship_id, width, height);
+
+                                let tokens = image_paragraph_tokens(
+                                    &figure_relationship_id,
+                                    width,
+                                    height,
+                                    image_counter,
+                                );
+
                                 result.extend(tokens);
+
+                                image_counter += 1;
                             } else {
                                 // TODO do some proper error handling or error notifications
                                 // here.
