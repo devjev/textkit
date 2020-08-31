@@ -2,14 +2,10 @@
 //!
 
 use crate::render::{
-    char_text_tokens, end_tag_event, heading_prequel_tokens, heading_sequel_tokens,
     image_paragraph_tokens, markdown::markdown_to_tokens, monospace_paragraph_tokens,
-    paragraph_prequel_tokens, paragraph_sequel_tokens, run_end_token, run_start_token,
-    start_tag_event,
 };
+use crate::Token;
 use crate::{FileContents, ImageFileContents};
-use crate::{Token, TokenType, NS_WP_ML};
-use pulldown_cmark::{Options, Parser};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::io::Cursor;
@@ -50,9 +46,6 @@ pub(crate) fn jupyter_nb_to_tokens(
     start_rels_id: &mut usize,
     images: &mut BTreeMap<String, ImageFileContents>,
 ) -> Vec<Token> {
-    let mut markdown_options = Options::empty();
-    markdown_options.insert(Options::ENABLE_STRIKETHROUGH);
-
     let mut result: Vec<Token> = Vec::new();
     let mut image_counter: usize = 1;
 

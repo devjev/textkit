@@ -7,6 +7,7 @@
       "some_array": ["a", "b", "c", "d"]
     }
   },
+  "md_text": "# Example Heading\nThis is some **tasty** *markdown*.",
   "table_data": {
     "columns": [
       [

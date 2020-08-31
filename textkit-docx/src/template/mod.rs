@@ -7,8 +7,8 @@ use crate::{
     render::{
         datakit_table::datakit_table_to_tokens, get_last_id_number_for_document_xml_rels,
         insert_images_in_document_xml_rels, insert_png_content_type, jupyter_nb::*,
-        new_zip_bytes_with_document_xml, render_and_paste_tokens, replace_file_in_zip,
-        write_token_vector_to_string,
+        markdown::markdown_to_tokens, new_zip_bytes_with_document_xml, render_and_paste_tokens,
+        replace_file_in_zip, write_token_vector_to_string,
     },
     DocxPayload, ImageFileContents, PageDimensions, TemplateArea, TemplatePlaceholder, Token,
     TokenType, PAT_HB_ALL,
@@ -197,6 +197,15 @@ impl DocxTemplate {
                                                 &mut images,
                                             );
                                             result.extend(notebook_tokens);
+                                        }
+                                    } else if helper_name == "markdown" {
+                                        if let Some(markdown_source) =
+                                            serialized_data.get(&placeholder.expression)
+                                        {
+                                            let source_text: String =
+                                                serde_json::from_value(markdown_source.clone())?;
+                                            let md_tokens = markdown_to_tokens(&source_text);
+                                            result.extend(md_tokens);
                                         }
                                     } else {
                                     }
