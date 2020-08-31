@@ -1,5 +1,6 @@
 pub mod datakit_table;
 pub mod jupyter_nb;
+pub mod markdown;
 
 use crate::errors::TextkitDocxError;
 use crate::{
