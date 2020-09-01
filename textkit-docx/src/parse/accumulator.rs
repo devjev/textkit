@@ -122,7 +122,10 @@ impl TemplateAccumulator {
                         acc: new_str,
                         acc_state: AccumulationMode::Multiline { depth: 0 },
                     }
-                } else if simple_ph_well_formed.is_match(&new_str) {
+                } else if simple_ph_well_formed.is_match(&new_str)
+                    && is_simple_placeholders_completely_closed(&new_str)
+                // TODO here might be weirdness
+                {
                     Self::Done(new_str)
                 } else if start_simple.is_match(&new_str) {
                     Self::Accumulating {

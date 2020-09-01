@@ -54,6 +54,8 @@ impl DocxTemplate {
         let dimensions = parse_page_dimensions(&document_xml)?;
         let template_areas = find_template_areas(&tokens, "p");
 
+        //println!("template_areas = {:#?}", template_areas);
+
         Ok(Self {
             source_payload,
             document_xml,

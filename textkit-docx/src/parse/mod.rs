@@ -1,8 +1,10 @@
 mod accumulator;
+mod compressor;
 
 use crate::errors::TextkitDocxError;
 use crate::{PageDimensions, TemplateArea, Token, TokenType, NS_WP_ML, PAT_HB_CPX, PAT_HB_SMP};
 use accumulator::TemplateAccumulator;
+use compressor::compress_tokens;
 use regex::Regex;
 use std::io::BufReader;
 use std::io::{Read, Seek};
@@ -57,6 +59,9 @@ pub(crate) fn xml_to_token_vec(xml: &str) -> Result<Vec<Token>, TextkitDocxError
             _ => {}
         }
     }
+
+    // FIXME here
+    // compress_tokens(&result);
 
     Ok(result)
 }
@@ -180,6 +185,9 @@ pub(crate) fn find_template_areas(
             None
         }
     });
+
+    // let debug_info: Vec<(usize, &Token)> = token_vec.iter().enumerate().collect();
+    // println!("debu_info = {:#?}", debug_info);
 
     for token_index in token_indices {
         let mut start_index: Option<usize> = None;

@@ -3,6 +3,7 @@ pub mod jupyter_nb;
 pub mod markdown;
 
 use crate::errors::TextkitDocxError;
+use crate::print_xml_reader_event;
 use crate::{
     ImageFileContents, Token, TokenType, NS_DWML_MAIN, NS_DWML_PIC, NS_REL, NS_WPD_ML, NS_WP_ML,
 };
@@ -1477,7 +1478,6 @@ pub(crate) fn render_and_paste_tokens<T: Serialize>(
     let hb = handlebars::Handlebars::new();
 
     match hb.render_template(template_text, data) {
-        //Ok(rendered_text) if !rendered_text.is_empty() => {
         Ok(rendered_text) => {
             if !rendered_text.is_empty() {
                 // Here for each paragraph in the rendered text, we take the
@@ -1525,6 +1525,9 @@ pub(crate) fn write_token_vector_to_string(
         .create_writer(cursor);
 
     for item in tokens {
+        print_xml_reader_event(&item.xml_reader_event);
+        println!("{:#?}", item);
+
         if let Some(writer_event) = item.xml_reader_event.as_writer_event() {
             // the .write method returns a result, the error value of which is
             // of type xml::writer::emitter::EmitterError, which is private...

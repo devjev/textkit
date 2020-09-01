@@ -308,7 +308,7 @@ pub(crate) fn datakit_table_to_tokens(table: &Table, dims: &PageDimensions) -> V
                 xml_reader_event: start_tag_event(
                     &Some(String::from("w")),
                     &Some(String::from(NS_WP_ML)),
-                    &String::from("tcw"),
+                    &String::from("tcW"),
                     Some(&vec![
                         owned_attribute(
                             &Some(String::from("w")),
