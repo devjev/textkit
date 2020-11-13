@@ -1,0 +1,8 @@
+[package]
+authors = ["Jevgeni Tarasov <jevgeni@hey.com>"]
+edition = "2018"
+name = "textkit-core"
+version = "0.2.0"
+
+[dependencies]
+zip = {version = "^0.5", default-features = false, features = ["deflate"]}

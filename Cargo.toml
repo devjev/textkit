@@ -1,5 +1,6 @@
 [workspace]
 members = [
-    "textkit",
-    "textkit-docx",
+  "textkit",
+  "textkit-docx",
+  "textkit-core",
 ]
